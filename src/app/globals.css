@@ -24,6 +24,12 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* font styles: each pairing swaps the body and heading font variables for everything inside the wrapper */
+[data-font] { font-family: var(--font-sans), system-ui, sans-serif; }
+[data-font="modern"] { --font-sans: var(--font-inter); --font-display: var(--font-poppins); }
+[data-font="elegant"] { --font-sans: var(--font-lora); --font-display: var(--font-playfair); }
+[data-font="bold"] { --font-sans: var(--font-dmsans); --font-display: var(--font-grotesk); }
+
 h1, h2, h3, .font-display {
   font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 700;

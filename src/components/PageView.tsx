@@ -105,7 +105,7 @@ function BlockView({ b, edit }: { b: Block; edit: boolean }) {
       return (
         <div id="rsvp" className="w-full max-w-2xl scroll-mt-4 text-left">
           <Card variant="outline" padding="lg" className="rounded-[28px] border border-border p-4 shadow-none sm:p-10">
-            <RsvpForm title={b.text} subtitle={b.text2} />
+            <RsvpForm title={b.text} subtitle={b.text2} labels={b.labels} parts={b.parts} />
           </Card>
         </div>
       );

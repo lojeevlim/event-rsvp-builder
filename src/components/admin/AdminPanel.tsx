@@ -13,6 +13,11 @@ import {
   MAX_IMAGES,
   MAX_SECTIONS,
   newBlock,
+  resolveRsvpParts,
+  RSVP_FIELDS,
+  RSVP_PART_META,
+  type RsvpPart,
+  type RsvpPartKey,
   type Block,
   type BlockType,
   type Decoration,
@@ -21,7 +26,7 @@ import {
   type Settings,
 } from "@/lib/settings-shared";
 import {
-  CalendarDays, ChevronDown, GripVertical, Layers, LayoutTemplate, Palette, SlidersHorizontal, Trash2, Keyboard, Redo2, Undo2, MapPin, MoveHorizontal, MoveVertical, Maximize2, Plus, RotateCw, Sparkles, Sticker, Type, Wrench, X, type LucideIcon,
+  ArrowDown, ArrowUp, CalendarDays, ChevronDown, GripVertical, Layers, LayoutTemplate, Palette, SlidersHorizontal, Trash2, Keyboard, Redo2, Undo2, MapPin, MoveHorizontal, MoveVertical, Maximize2, Plus, RotateCw, Sparkles, Sticker, Type, Wrench, X, type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import PageView from "@/components/PageView";
@@ -115,13 +120,16 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
   // "Content" list: a collapsible bar under the preview on phones, always open in the desktop sidebar
   const [addedOpen, setAddedOpen] = useState(false);
   // "Event & theme" dropdown: controlled so the phone layout can give it a close button
-  const [themeOpen, setThemeOpen] = useState(false);
+  // (the header and the bar each render one, so remember which is open — a shared flag would open both and each would close the other)
+  const [themeOpen, setThemeOpen] = useState<string | null>(null);
   // section settings: on phones the body can be folded away, leaving just its header
   const [settingsOpen, setSettingsOpen] = useState(false);
   // settings live in floating, draggable panels (the toolbox itself is a permanent icon strip)
   // the element / sticker that was just added: closing its panel untouched with ✕ takes it back out again
   const [fresh, setFresh] = useState<{ kind: "block" | "sticker"; id: string; snapshot: string } | null>(null);
   const [elementPanel, setElementPanel] = useState(false);
+  // the RSVP form piece being edited in its own floating panel (clicked in the preview)
+  const [rsvpPartKey, setRsvpPartKey] = useState<RsvpPartKey | null>(null);
   const [stickersPanel, setStickersPanel] = useState(false); // the text-stickers tool (+ Text, + Graffiti, the list)
   const [pendingType, setPendingType] = useState<EventType | null>(null);
   const [selKind, setSelKind] = useState<"sticker" | "block" | "section" | null>(null);
@@ -372,9 +380,11 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
     setSelDecor(null);
     const section = t.closest<HTMLElement>("[data-section]")?.dataset.section ?? null;
     const block = t.closest<HTMLElement>("[data-block]")?.dataset.block ?? null;
+    const part = (t.closest<HTMLElement>("[data-rsvp-part]")?.dataset.rsvpPart as RsvpPartKey | undefined) ?? null;
+    setRsvpPartKey(section && block ? part : null);
     if (section) {
       setSel({ section, block });
-      if (block) setElementPanel(true);
+      if (block) setElementPanel(!part); // a clicked form piece opens its own panel instead of the whole element's
       setSelKind(block ? "block" : "section");
       setLeftOpen(true); // a highlighted section opens its settings panel
     } else {
@@ -696,22 +706,22 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
     </button>
   );
 
-  // Event & theme, View page and Save: in the header, or (phones, edit view) floating above the "Content" bar
-  const actionButtons = (parts: ("theme" | "view" | "save")[], compact = false) => (
+  // Event & theme, Preview and Save: in the header, or (phones, edit view) floating above the "Content" bar
+  const actionButtons = (parts: ("theme" | "view" | "save")[], compact = false, slot = "header") => (
     <>
       {parts.includes("theme") && view === "edit" && (
         <Popover
           transition="blur"
           transitionDelay={60}
-          open={themeOpen}
-          onOpenChange={setThemeOpen}
+          open={themeOpen === slot}
+          onOpenChange={(o) => setThemeOpen(o ? slot : null)}
           position="bottom"
           classNames={{ panel: "fixed inset-x-0 mx-auto sm:inset-x-auto sm:mx-0 sm:left-4 sm:right-auto top-14 sm:top-16 w-[min(92vw,360px)] translate-x-0 z-50 p-5 shadow-xl max-h-[calc(100dvh-4.5rem)] overflow-y-auto" }}
           content={
             <>
               <div className="-mt-2 mb-2 flex items-center justify-between sm:hidden">
                 <span className="text-xs font-bold uppercase tracking-wide text-soft">Event &amp; theme</span>
-                <Button variant="ghost" size="sm" icon="x" iconOnly aria-label="Close event and theme" onClick={() => setThemeOpen(false)} />
+                <Button variant="ghost" size="sm" icon="x" iconOnly aria-label="Close event and theme" onClick={() => setThemeOpen(null)} />
               </div>
               <ThemeTool s={s} setS={setS} onPickType={setPendingType} />
             </>
@@ -724,8 +734,8 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
           </Tooltip>
         </Popover>
       )}
-      {parts.includes("view") && <Tooltip content="View page — see it as visitors will, including unsaved changes" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
-        <Button size="sm" shape="pill" icon="eye" aria-label="View page" className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`} onClick={() => setPreviewing(true)}><span className={compact ? "hidden" : ""}>View page</span></Button>
+      {parts.includes("view") && <Tooltip content="Preview — the page as visitors will see it, including unsaved changes" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
+        <Button size="sm" shape="pill" icon="eye" aria-label="Preview" className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`} onClick={() => setPreviewing(true)}><span className={compact ? "hidden" : ""}>Preview</span></Button>
       </Tooltip>}
       {parts.includes("save") && view === "edit" && (
         <Tooltip content="Save changes — publish to the live site" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
@@ -766,7 +776,7 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
             {dirty && <Badge variant="soft" color="amber" dot>Unsaved changes</Badge>}
             <UserMenu transition="blur" transitionDelay={60} className="max-sm:hidden" name="Admin" avatarInitials="A" items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
           </div>
-          {/* own row below lg: Event & theme and View page on the left, Save on the right */}
+          {/* own row below lg: Event & theme and Preview on the left, Save on the right */}
           <div className={`flex w-full items-center justify-between gap-2 ${view === "edit" ? "lg:hidden" : ""}`}>
             <div className="flex flex-wrap items-center gap-2">{actionButtons(["theme", "view"])}</div>
             <div className="flex items-center">{actionButtons(["save"])}</div>
@@ -846,12 +856,12 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
               >
                 {/* large screens: an oval bar of page actions above the page */}
                 <div data-action className="fx-invert sticky top-0 z-30 mb-3 mx-auto hidden max-w-[1100px] justify-between lg:flex">
-                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["theme", "view"])}</div>
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["theme", "view"], false, "bar")}</div>
                   <div className="flex items-center rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["save"])}</div>
                 </div>
                 {/* only this preview takes the site theme — the admin UI itself stays as it is */}
                 <ThemeProvider isolated mode={s.theme.mode} accent={s.theme.accent} design={s.theme.design}>
-                  <div className={`editing ${sel.section ? "has-selection" : ""} page-bg mx-auto max-w-[1100px] overflow-x-clip rounded-2xl pt-1 text-fg ring-1 ring-border`}>
+                  <div data-font={s.theme.font} className={`editing ${sel.section ? "has-selection" : ""} page-bg mx-auto max-w-[1100px] overflow-x-clip rounded-2xl pt-1 text-fg ring-1 ring-border`}>
                     <PageView s={display} edit={{ selected: sel, layer, actions, sticker: stickerInfo }} />
                   </div>
                 </ThemeProvider>
@@ -955,6 +965,7 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
             </div>
             <ThemeProvider isolated mode={s.theme.mode} accent={s.theme.accent} design={s.theme.design}>
               <div
+                data-font={s.theme.font}
                 className="page-bg min-h-screen text-fg"
                 onSubmitCapture={(e) => {
                   e.preventDefault(); // the form is only a preview here — nothing is sent
@@ -1002,9 +1013,19 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
 
         {elementPanel && curBlock && !previewing && <Connector panel="element" selector={`[data-block="${curBlock.id}"]`} />}
         <AnimatePresence>
+        {rsvpPartKey && curBlock?.type === "rsvp" && !previewing && (
+          <FloatingPanel key="rsvppart" panelId="rsvppart" title={`Form piece: ${RSVP_PART_META[rsvpPartKey].label}`} onClose={() => setRsvpPartKey(null)} onDone={() => setRsvpPartKey(null)}>
+            <RsvpPartEditor b={curBlock} partKey={rsvpPartKey} set={(p) => updateBlock(curBlock.id, p)} onRemoved={() => setRsvpPartKey(null)} />
+          </FloatingPanel>
+        )}
+        </AnimatePresence>
+
+        {rsvpPartKey && curBlock?.type === "rsvp" && !previewing && <Connector panel="rsvppart" selector={`[data-rsvp-part="${rsvpPartKey}"]`} />}
+
+        <AnimatePresence>
         {elementPanel && curBlock && !previewing && (
           <FloatingPanel key="element" panelId="element" title={`Element: ${PALETTE.find((p) => p.type === curBlock.type)?.label ?? curBlock.type}`} onClose={() => closeElementPanel(true)} onDone={() => closeElementPanel(false)} closeHint={justAddedBlock && untouched(curBlock) ? "Cancel — removes the element you just added" : "Close"}>
-            <BlockEditor b={curBlock} set={(p) => updateBlock(curBlock.id, p)} remove={() => actions.removeBlock(curBlock.id)} setMsg={setMsg} />
+            <BlockEditor b={curBlock} set={(p) => updateBlock(curBlock.id, p)} remove={() => actions.removeBlock(curBlock.id)} setMsg={setMsg} onEditPart={(k) => { setRsvpPartKey(k); }} />
           </FloatingPanel>
         )}
         </AnimatePresence>
@@ -1066,6 +1087,13 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
 
 /* ------------------------------------------------------------------ */
 
+const FONT_OPTIONS = [
+  ["playful", "Playful — Nunito & Fredoka"],
+  ["modern", "Modern — Inter & Poppins"],
+  ["elegant", "Elegant — Lora & Playfair Display"],
+  ["bold", "Bold — DM Sans & Space Grotesk"],
+] as const;
+
 function ThemeTool({ s, setS, onPickType }: { s: Settings; setS: React.Dispatch<React.SetStateAction<Settings>>; onPickType: (t: EventType) => void }) {
   const set = (p: Partial<Settings["theme"]>) => setS((prev) => ({ ...prev, theme: { ...prev.theme, ...p } }));
   return (
@@ -1095,8 +1123,8 @@ function ThemeTool({ s, setS, onPickType }: { s: Settings; setS: React.Dispatch<
         onChange={(accent) => set({ accent })}
       />
       <SwitchField label="Dark mode" checked={s.theme.mode === "dark"} onChange={(dark) => set({ mode: dark ? "dark" : "light" })} />
-      <SelectField label="Design" value={s.theme.design} options={[["bento", "Bento"], ["clay", "Clay"]]} onChange={(design) => set({ design })} />
-      <p className="text-xs text-soft">The accent colour, mode and design restyle the whole site, and every lojee-ui component on it.</p>
+      <SelectField label="Font style" value={s.theme.font} options={FONT_OPTIONS} onChange={(font) => set({ font })} />
+      <p className="text-xs text-soft">The accent colour, mode and font style restyle the whole site, and every lojee-ui component on it.</p>
     </div>
   );
 }
@@ -1168,19 +1196,89 @@ function SectionEditor({ sec, set, remove }: { sec: Section; set: (p: Partial<Se
         <SwitchField label="Wide content (use more of the page width)" checked={sec.wide} onChange={(wide) => set({ wide })} />
       </Group>
 
-      <Group label="Danger zone" Icon={Trash2}>
-        <Button variant="destructive-outline" size="sm" icon="trash-2" className="justify-self-start" onClick={remove}>
+      <div className="border-t border-border pt-5">
+        <Button variant="destructive-outline" size="sm" shape="pill" icon="trash-2" className="w-full font-semibold" onClick={remove}>
           Delete section
         </Button>
-      </Group>
+      </div>
     </div>
   );
 }
 
-function BlockEditor({ b, set, remove, setMsg }: { b: Block; set: (p: Partial<Block>) => void; remove: () => void; setMsg: (m: { ok: boolean; text: string }) => void }) {
+const RSVP_ICON_BTN = "flex h-7 w-7 items-center justify-center rounded-lg text-soft hover:bg-surface-muted hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-soft";
+
+/** the RSVP form pieces (resolved, so any missing one is included) and how to change or reorder them */
+function rsvpPartOps(b: Block, set: (p: Partial<Block>) => void) {
+  const parts = resolveRsvpParts(b.parts);
+  return {
+    parts,
+    setPart: (key: RsvpPartKey, patch: Partial<RsvpPart>) => set({ parts: parts.map((p) => (p.key === key ? { ...p, ...patch } : p)) }),
+    move: (key: RsvpPartKey, d: number) => {
+      const a = [...parts];
+      const i = a.findIndex((p) => p.key === key);
+      if (i < 0 || i + d < 0 || i + d >= a.length) return;
+      [a[i], a[i + d]] = [a[i + d], a[i]];
+      set({ parts: a });
+    },
+  };
+}
+
+/** The floating settings for one piece of the RSVP form: where it sits, how big it is, and its own text. */
+function RsvpPartEditor({ b, partKey, set, onRemoved }: { b: Block; partKey: RsvpPartKey; set: (p: Partial<Block>) => void; onRemoved: () => void }) {
+  const { parts, setPart, move } = rsvpPartOps(b, set);
+  const i = parts.findIndex((p) => p.key === partKey);
+  const p = parts[i];
+  const meta = RSVP_PART_META[partKey];
+  return (
+    <div className="grid gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Position</span>
+        <div className="flex items-center gap-1">
+          <button type="button" className={RSVP_ICON_BTN} aria-label="Move up" title="Move up" disabled={i === 0} onClick={() => move(partKey, -1)}><ArrowUp size={14} /></button>
+          <button type="button" className={RSVP_ICON_BTN} aria-label="Move down" title="Move down" disabled={i === parts.length - 1} onClick={() => move(partKey, 1)}><ArrowDown size={14} /></button>
+        </div>
+      </div>
+      <SwitchField label={meta.required ? "Shown (the form needs this)" : "Show this piece"} checked={!p.hidden} onChange={(show) => !meta.required && setPart(partKey, { hidden: !show })} />
+      <div className="grid grid-cols-3 gap-2">
+        <SelectField label="Size" value={p.size} options={SIZE_OPTIONS} onChange={(size) => setPart(partKey, { size })} />
+        <SelectField label="Align" value={p.align} options={[["left", "Left"], ["center", "Center"], ["right", "Right"]]} onChange={(align) => setPart(partKey, { align })} />
+        <SelectField label="Width" value={p.width} options={[["half", "Half"], ["full", "Full"], ["fit", "Fit"]]} onChange={(width) => setPart(partKey, { width })} />
+      </div>
+      {RSVP_FIELDS.some((f) => f.group === partKey) && (
+        <div className="grid gap-3 border-t border-border pt-3">
+          <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Text</span>
+          {RSVP_FIELDS.filter((f) => f.group === partKey).map((f) => (
+            <TextField key={f.key} label={f.label} value={b.labels[f.key] ?? ""} placeholder={f.def} long={"long" in f} maxLength={300} onChange={(v) => set({ labels: { ...b.labels, [f.key]: v } })} />
+          ))}
+          <p className="text-xs text-soft">Leave a field empty to use the standard text.</p>
+        </div>
+      )}
+      <div className="grid gap-1.5 border-t border-border pt-3">
+        <Button
+          variant="destructive-outline"
+          size="sm"
+          shape="pill"
+          icon="trash-2"
+          className="w-full font-semibold"
+          disabled={meta.required}
+          onClick={() => {
+            setPart(partKey, { hidden: true });
+            onRemoved();
+          }}
+        >
+          Remove from form
+        </Button>
+        <p className="text-xs text-soft">{meta.required ? "The form can't work without this piece." : "Removed pieces can be added back from the RSVP element's list."}</p>
+      </div>
+    </div>
+  );
+}
+
+function BlockEditor({ b, set, remove, setMsg, onEditPart }: { b: Block; set: (p: Partial<Block>) => void; remove: () => void; setMsg: (m: { ok: boolean; text: string }) => void; onEditPart?: (key: RsvpPartKey) => void }) {
   const t = (field: "text" | "text2" | "text3" | "url" | "icon", label: string, long = false) => (
     <TextField label={label} value={b[field]} long={long} onChange={(v) => set({ [field]: v })} />
   );
+  const rsvp = rsvpPartOps(b, set);
   const sizeSel = (label = "Size") => <SelectField label={label} value={b.size} options={SIZE_OPTIONS} onChange={(size) => set({ size })} />;
   const toneSel = <SelectField label="Colour" value={b.tone} options={TONE_OPTIONS} onChange={(tone) => set({ tone })} />;
 
@@ -1237,7 +1335,38 @@ function BlockEditor({ b, set, remove, setMsg }: { b: Block; set: (p: Partial<Bl
             />
           </>
         )}
-        {b.type === "rsvp" && (<>{t("text", "Form title")}{t("text2", "Form subtitle", true)}</>)}
+        {b.type === "rsvp" && (
+          <>
+            {t("text", "Form title")}
+            {t("text2", "Form subtitle", true)}
+            <div className="grid gap-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-fg-muted">Form pieces</p>
+              <p className="-mt-1 text-xs text-soft">Click a piece in the preview, or its Edit button, to open its own settings.</p>
+              {rsvp.parts.map((p, i) => {
+                const meta = RSVP_PART_META[p.key];
+                return (
+                  <div key={p.key} className={`flex items-center gap-1 rounded-xl border border-border py-1.5 pl-3 pr-1.5 ${p.hidden ? "bg-surface-muted/60" : ""}`}>
+                    <span className={`flex-1 truncate text-sm font-semibold ${p.hidden ? "text-soft line-through" : ""}`}>{meta.label}</span>
+                    <button type="button" className={RSVP_ICON_BTN} aria-label={`Move ${meta.label} up`} disabled={i === 0} onClick={() => rsvp.move(p.key, -1)}><ArrowUp size={14} /></button>
+                    <button type="button" className={RSVP_ICON_BTN} aria-label={`Move ${meta.label} down`} disabled={i === rsvp.parts.length - 1} onClick={() => rsvp.move(p.key, 1)}><ArrowDown size={14} /></button>
+                    {p.hidden ? (
+                      <Button variant="ghost" size="sm" onClick={() => rsvp.setPart(p.key, { hidden: false })}>Add back</Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => onEditPart?.(p.key)}>Edit</Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <fieldset className="grid gap-3 rounded-xl border border-border p-3">
+              <legend className="px-1 text-[11px] font-medium uppercase tracking-[0.18em] text-soft">Thank-you message</legend>
+              {RSVP_FIELDS.filter((f) => f.group === "done").map((f) => (
+                <TextField key={f.key} label={f.label} value={b.labels[f.key] ?? ""} placeholder={f.def} long={"long" in f} maxLength={300} onChange={(v) => set({ labels: { ...b.labels, [f.key]: v } })} />
+              ))}
+              <p className="text-xs text-soft">Shown after someone sends the form. Leave empty to use the standard text.</p>
+            </fieldset>
+          </>
+        )}
         {b.type === "divider" && t("text", "Label (optional)")}
         {b.type === "spacer" && sizeSel("Height")}
         {b.type === "image" && <ImageField b={b} set={set} setMsg={setMsg} />}
@@ -1754,7 +1883,7 @@ function Connector({ panel, selector }: { panel: string; selector: string }) {
 
 const lastPanelPos: Record<string, { x: number; y: number }> = {}; // remembered per panel between openings
 // where each panel first opens (cascaded, so several open together do not sit exactly on top of each other)
-const PANEL_START: Record<string, { fromRight: number; y: number; left?: number }> = { element: { fromRight: 300, y: 90 }, sticker: { fromRight: 340, y: 130 }, stickers: { fromRight: 320, y: 200 } }; // clear of the element list + toolbox columns
+const PANEL_START: Record<string, { fromRight: number; y: number; left?: number }> = { element: { fromRight: 300, y: 90 }, sticker: { fromRight: 340, y: 130 }, stickers: { fromRight: 320, y: 200 }, rsvppart: { fromRight: 360, y: 150 } }; // clear of the element list + toolbox columns
 
 /** A small window that floats over the editor; drag it by its header. */
 function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", width = 340, children }: { panelId: string; title: string; onClose: () => void; onDone: () => void; closeHint?: string; width?: number; children: React.ReactNode }) {
@@ -1882,13 +2011,11 @@ function ElementList({
         {!shut.Components && section.blocks.length === 0 && <p className="col-span-full text-xs text-soft">Nothing here yet — add an element from the toolbox.</p>}
         {!shut.Components && section.blocks.map((b, i) => {
           const meta = PALETTE.find((p) => p.type === b.type);
-          const Icon = meta?.Icon ?? Type;
           const snippet = (b.text || b.text2 || b.url || "").trim();
           return (
             <div key={b.id} {...dnd.row(i)} className={`${row} ${b.id === selBlock ? "border-[#2563eb]/40 bg-[#2563eb]/[0.05] shadow-[0_2px_10px_rgba(37,99,235,0.12)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r before:bg-[#2563eb]" : "border-transparent hover:border-border hover:bg-surface-muted"}`}>
               <Grip {...dnd.handle(i)} />
               <button type="button" onClick={() => onPickBlock(b.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-fg ring-1 ring-border"><Icon size={15} strokeWidth={1.75} /></span>
                 <span className="grid min-w-0 gap-0.5">
                   <Badge variant="soft" size="xs" color={TYPE_COLOR[b.type] as "indigo"} className="w-fit max-w-full">{meta?.label ?? b.type}</Badge>
                   <span className="block truncate text-xs text-soft">{snippet || "—"}</span>
@@ -1908,7 +2035,6 @@ function ElementList({
           {!shut.Stickers && stickers.map((d) => (
             <div key={d.id} className={`${row} ${d.id === selSticker ? "border-[#2563eb]/40 bg-[#2563eb]/[0.05] shadow-[0_2px_10px_rgba(37,99,235,0.12)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r before:bg-[#2563eb]" : "border-transparent hover:border-border hover:bg-surface-muted"}`}>
               <button type="button" onClick={() => onPickSticker(d.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <span className="flex h-8 w-10 shrink-0 items-center justify-center overflow-hidden"><StickerThumb d={d} size={22} /></span>
                 <span className="grid min-w-0 gap-0.5">
                   <Badge variant="soft" size="xs" color="rose" className="w-fit max-w-full">{KIND_LABEL[d.kind]}</Badge>
                   <span className="block truncate text-xs text-soft">{d.kind === "image" || d.kind === "art" ? (d.kind === "art" ? d.content : "your picture") : d.content}</span>

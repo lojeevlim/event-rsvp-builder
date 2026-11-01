@@ -25,10 +25,77 @@ const pathSchema = z.object({
 });
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
-const DEFAULT_THEME = { mode: "light" as const, accent: "#18181b", design: "bento" as const };
+/** font pairings (body + headings) for the whole site; the CSS for each lives in globals.css */
+export const FONT_STYLES = ["playful", "modern", "elegant", "bold"] as const;
+export type FontStyle = (typeof FONT_STYLES)[number];
+const DEFAULT_THEME = { mode: "light" as const, accent: "#18181b", design: "bento" as const, font: "playful" as FontStyle };
 const text = (max = 200) => z.string().trim().max(max);
 const sizes = z.enum(["sm", "md", "lg", "xl"]);
 const upload = z.string().regex(/^\/api\/img\/[\w.-]+$/);
+
+/** Every piece of text on the RSVP form that the editor can change: key, editor label, default text, and which form piece it belongs to ("done" = the thank-you message). */
+export const RSVP_FIELDS = [
+  { key: "nameLabel", label: "Name label", def: "Full name", group: "name" },
+  { key: "namePlaceholder", label: "Name hint", def: "e.g. Uncle Alex & Family", group: "name" },
+  { key: "emailLabel", label: "Email label", def: "Email", group: "email" },
+  { key: "emailPlaceholder", label: "Email hint", def: "For your confirmation", group: "email" },
+  { key: "attendLabel", label: "Question", def: "Will you attend?", group: "attend" },
+  { key: "yesTitle", label: "Yes answer", def: "Count me in", group: "attend" },
+  { key: "yesHint", label: "Yes answer — small text", def: "I'll be there", group: "attend" },
+  { key: "noTitle", label: "No answer", def: "Regretfully no", group: "attend" },
+  { key: "noHint", label: "No answer — small text", def: "I can't make it", group: "attend" },
+  { key: "whoLabel", label: "Guests heading", def: "Who's coming?", group: "guests" },
+  { key: "guestOne", label: "Word for 1 guest", def: "guest", group: "guests" },
+  { key: "guestMany", label: "Word for several guests", def: "guests", group: "guests" },
+  { key: "adultsLabel", label: "Adults label", def: "Adults", group: "guests" },
+  { key: "adultsHint", label: "Adults small text", def: "Including you", group: "guests" },
+  { key: "kidsLabel", label: "Kids label", def: "Kids", group: "guests" },
+  { key: "kidsHint", label: "Kids small text", def: "Under 12", group: "guests" },
+  { key: "notesLabel", label: "Note label", def: "Notes / dietary needs", group: "notes" },
+  { key: "notesPlaceholder", label: "Note hint", def: "Leave a note for the hosts…", group: "notes" },
+  { key: "submitYes", label: "Button (attending)", def: "Send my RSVP", group: "submit" },
+  { key: "submitNo", label: "Button (not attending)", def: "Send my reply", group: "submit" },
+  { key: "sending", label: "Button while sending", def: "Sending…", group: "submit" },
+  { key: "privacy", label: "Privacy line", def: "We only use your email to send your confirmation.", group: "privacy" },
+  { key: "doneYesTitle", label: "Title (attending)", def: "You're on the list!", group: "done" },
+  { key: "doneYesText", label: "Text (attending)", def: "We're so glad you can make it. Your confirmation is on its way — check spam if you don't see it.", group: "done", long: true },
+  { key: "doneNoTitle", label: "Title (not attending)", def: "Thanks for letting us know", group: "done" },
+  { key: "doneNoText", label: "Text (not attending)", def: "We'll miss you. Thank you for replying.", group: "done", long: true },
+] as const;
+export const RSVP_DEFAULTS: Record<string, string> = Object.fromEntries(RSVP_FIELDS.map((f) => [f.key, f.def]));
+
+/** The pieces of the RSVP form, in their default order. `required` pieces can't be hidden: the form needs them to work. */
+export const RSVP_PART_KEYS = ["name", "email", "attend", "guests", "notes", "submit", "privacy"] as const;
+export type RsvpPartKey = (typeof RSVP_PART_KEYS)[number];
+export const RSVP_PART_META: Record<RsvpPartKey, { label: string; required: boolean; width: "half" | "full" }> = {
+  name: { label: "Full name", required: true, width: "half" },
+  email: { label: "Email", required: true, width: "half" },
+  attend: { label: "Will you attend?", required: false, width: "full" },
+  guests: { label: "Guests (adults & kids)", required: false, width: "full" },
+  notes: { label: "Note box", required: false, width: "full" },
+  submit: { label: "Send button", required: true, width: "full" },
+  privacy: { label: "Privacy line", required: false, width: "full" },
+};
+const rsvpPart = z.object({
+  key: z.enum(RSVP_PART_KEYS),
+  hidden: z.boolean().default(false),
+  size: sizes.default("md"),
+  align: z.enum(["left", "center", "right"]).default("left"),
+  width: z.enum(["half", "full", "fit"]).default("full"),
+});
+export type RsvpPart = z.infer<typeof rsvpPart>;
+/** The stored pieces in their stored order, with any missing piece added back at the end with its defaults. */
+export function resolveRsvpParts(stored?: RsvpPart[]): RsvpPart[] {
+  const seen = new Set<RsvpPartKey>();
+  const out: RsvpPart[] = [];
+  for (const p of stored ?? []) {
+    if (seen.has(p.key)) continue;
+    seen.add(p.key);
+    out.push({ ...p, hidden: RSVP_PART_META[p.key].required ? false : p.hidden });
+  }
+  for (const key of RSVP_PART_KEYS) if (!seen.has(key)) out.push({ key, hidden: false, size: "md", align: key === "privacy" ? "center" : "left", width: RSVP_PART_META[key].width });
+  return out;
+}
 
 const block = z
   .object({
@@ -43,6 +110,10 @@ const block = z
     tone: z.enum(["ink", "brand", "soft", "white"]).default("ink"),
     caps: z.boolean().default(false),
     images: z.array(z.object({ url: upload, alt: text() })).max(MAX_IMAGES).default([]),
+    /** RSVP form: text overrides by key (see RSVP_FIELDS); a missing or empty key uses the default */
+    labels: z.record(z.string(), text(300)).default({}),
+    /** RSVP form: order, visibility, size, alignment and width of each piece (empty = the standard layout) */
+    parts: z.array(rsvpPart).max(10).default([]),
   })
   .superRefine((b, ctx) => {
     const link = b.url === "" || b.url.startsWith("#") || /^https?:\/\//i.test(b.url);
@@ -74,7 +145,7 @@ export const settingsSchema = z.object({
   /** one-time page upgrades already applied (so a section you delete is not added back) */
   upgrades: z.array(text(40)).max(20).default([]),
   eventType: z.enum(EVENT_TYPES).default("general"),
-  theme: z.object({ mode: z.enum(["light", "dark"]), accent: text(40).regex(/^([a-z]+|#[0-9a-fA-F]{6})$/), design: z.enum(["bento", "clay"]) }),
+  theme: z.object({ mode: z.enum(["light", "dark"]), accent: text(40).regex(/^([a-z]+|#[0-9a-fA-F]{6})$/), design: z.enum(["bento", "clay"]), font: z.enum(FONT_STYLES).default("playful") }),
   sections: z.array(section).max(MAX_SECTIONS),
   decorations: z
     .array(
@@ -139,7 +210,7 @@ export function applyName(s: Settings): Settings {
 }
 
 export function newBlock(type: BlockType, id: string): Block {
-  const base: Block = { id, type, text: "", text2: "", text3: "", url: "", icon: "", size: "md", tone: "ink", caps: false, images: [] };
+  const base: Block = { id, type, text: "", text2: "", text3: "", url: "", icon: "", size: "md", tone: "ink", caps: false, images: [], labels: {}, parts: [] };
   switch (type) {
     case "badge": return { ...base, text: "New badge" };
     case "heading": return { ...base, text: "New heading", size: "lg" };
@@ -180,6 +251,7 @@ export function normalizeTheme(t: any): Settings["theme"] {
     mode: t?.mode === "dark" ? "dark" : "light",
     accent: typeof t?.accent === "string" ? t.accent : typeof t?.brand === "string" ? t.brand : DEFAULT_THEME.accent,
     design: t?.design === "clay" ? "clay" : "bento",
+    font: FONT_STYLES.includes(t?.font) ? t.font : "playful",
   };
 }
 

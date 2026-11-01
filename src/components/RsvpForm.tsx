@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Check, Lock, Mail, Minus, PartyPopper, Plus, Users, X } from "lucide-react";
 import { Alert, Button, Input, Label, Textarea } from "@/components/ui";
+import { resolveRsvpParts, RSVP_DEFAULTS, type RsvpPart, type RsvpPartKey } from "@/lib/settings-shared";
 
 type Result = { attending: boolean; guests: number; name: string; email: string } | null;
+
+// how each piece sits in the form's two-column grid, and how its size and alignment are applied
+const WIDTH = { half: "col-span-2 sm:col-span-1", full: "col-span-2", fit: "col-span-2 w-fit" } as const;
+const FIT_ALIGN = { left: "justify-self-start", center: "justify-self-center", right: "justify-self-end" } as const;
+const TEXT_ALIGN = { left: "text-left", center: "text-center", right: "text-right" } as const;
+const ZOOM = { sm: 0.88, md: 1, lg: 1.15, xl: 1.3 } as const;
 
 const eyebrow = "text-[11px] font-semibold uppercase tracking-[0.18em] text-soft";
 
@@ -64,7 +71,9 @@ function Choice({ active, onClick, icon, title, hint }: { active: boolean; onCli
   );
 }
 
-export default function RsvpForm({ title, subtitle }: { title: string; subtitle: string }) {
+export default function RsvpForm({ title, subtitle, labels = {}, parts: partsProp }: { title: string; subtitle: string; labels?: Record<string, string>; parts?: RsvpPart[] }) {
+  /** the text for a key: what the editor set, else the default */
+  const L = (key: string) => labels[key]?.trim() || RSVP_DEFAULTS[key];
   const [attending, setAttending] = useState(true);
   const [adults, setAdults] = useState(2);
   const [kids, setKids] = useState(0);
@@ -115,9 +124,9 @@ export default function RsvpForm({ title, subtitle }: { title: string; subtitle:
           {done.attending ? <PartyPopper size={28} /> : <Mail size={26} />}
         </motion.span>
         <div className="grid gap-2">
-          <h3 className="font-display text-3xl font-bold">{done.attending ? "You're on the list!" : "Thanks for letting us know"}</h3>
+          <h3 className="font-display text-3xl font-bold">{done.attending ? L("doneYesTitle") : L("doneNoTitle")}</h3>
           <p className="mx-auto max-w-sm text-sm text-soft">
-            {done.attending ? "We're so glad you can make it. Your confirmation is on its way — check spam if you don't see it." : "We'll miss you. Thank you for replying."}
+            {done.attending ? L("doneYesText") : L("doneNoText")}
           </p>
         </div>
         <dl className="grid w-full max-w-sm gap-px overflow-hidden rounded-2xl bg-border text-left text-sm ring-1 ring-border">
@@ -137,6 +146,80 @@ export default function RsvpForm({ title, subtitle }: { title: string; subtitle:
     );
   }
 
+  const parts = resolveRsvpParts(partsProp);
+
+  const content: Record<RsvpPartKey, (p: RsvpPart) => React.ReactNode> = {
+    name: () => (
+      <div className="grid gap-2">
+        <Label htmlFor="name" required className={eyebrow}>{L("nameLabel")}</Label>
+        <Input id="name" name="name" variant="filled" size="lg" leadingIcon="user" placeholder={L("namePlaceholder")} required maxLength={80} autoComplete="name" />
+      </div>
+    ),
+    email: () => (
+      <div className="grid gap-2">
+        <Label htmlFor="email" required className={eyebrow}>{L("emailLabel")}</Label>
+        <Input id="email" name="email" type="email" variant="filled" size="lg" leadingIcon="mail" placeholder={L("emailPlaceholder")} required autoComplete="email" />
+      </div>
+    ),
+    attend: () => (
+      <div className="grid gap-3">
+        <span className={eyebrow}>{L("attendLabel")}</span>
+        <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label={L("attendLabel")}>
+          <Choice active={attending} onClick={() => setAttending(true)} icon={<Check size={20} />} title={L("yesTitle")} hint={L("yesHint")} />
+          <Choice active={!attending} onClick={() => setAttending(false)} icon={<X size={20} />} title={L("noTitle")} hint={L("noHint")} />
+        </div>
+      </div>
+    ),
+    guests: () => (
+      <AnimatePresence initial={false}>
+        {attending && (
+          <motion.div
+            key="guests"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="grid gap-3">
+              <div className="flex items-center justify-between">
+                <span className={eyebrow}>{L("whoLabel")}</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-500/10 px-2.5 py-1 text-xs font-semibold text-accent-700 dark:text-accent-300">
+                  <Users size={13} />
+                  {Math.min(total, 10)} {Math.min(total, 10) === 1 ? L("guestOne") : L("guestMany")}
+                </span>
+              </div>
+              <div className="grid gap-4 rounded-2xl bg-surface-muted p-4 sm:grid-cols-2 sm:gap-8 sm:p-5">
+                <Counter label={L("adultsLabel")} hint={L("adultsHint")} value={adults} min={1} max={9} onChange={setAdults} />
+                <Counter label={L("kidsLabel")} hint={L("kidsHint")} value={kids} min={0} max={9} onChange={setKids} />
+              </div>
+              {total > 10 && <p className="text-xs text-soft">We can take up to 10 guests per reply — the first 10 will be counted.</p>}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    ),
+    notes: () => (
+      <div className="grid gap-2">
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="message" className={eyebrow}>{L("notesLabel")}</Label>
+          <span className="text-[11px] tabular-nums text-soft">{noteLength}/500</span>
+        </div>
+        <Textarea id="message" name="message" variant="filled" rows={3} maxLength={500} placeholder={L("notesPlaceholder")} onChange={(e) => setNoteLength(e.target.value.length)} />
+      </div>
+    ),
+    submit: (p) => (
+      <Button type="submit" size="lg" shape="pill" loading={loading} className={`font-semibold ${p.width === "fit" ? "" : "w-full"}`}>
+        {loading ? L("sending") : (<>{attending ? L("submitYes") : L("submitNo")} <ArrowRight size={17} className="ml-1" /></>)}
+      </Button>
+    ),
+    privacy: (p) => (
+      <p className={`flex items-center gap-1.5 text-xs text-soft ${p.align === "center" ? "justify-center" : p.align === "right" ? "justify-end" : ""}`}>
+        <Lock size={12} /> {L("privacy")}
+      </p>
+    ),
+  };
+
   return (
     <div className="px-1 py-1 sm:px-3">
       <div className="mb-9 text-center">
@@ -144,75 +227,28 @@ export default function RsvpForm({ title, subtitle }: { title: string; subtitle:
         <p className="mx-auto mt-3 max-w-md text-soft">{subtitle}</p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-7">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="name" required className={eyebrow}>Full name</Label>
-            <Input id="name" name="name" variant="filled" size="lg" leadingIcon="user" placeholder="e.g. Uncle Alex & Family" required maxLength={80} autoComplete="name" />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email" required className={eyebrow}>Email</Label>
-            <Input id="email" name="email" type="email" variant="filled" size="lg" leadingIcon="mail" placeholder="For your confirmation" required autoComplete="email" />
-          </div>
-        </div>
-
-        <div className="grid gap-3">
-          <span className={eyebrow}>Will you attend?</span>
-          <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Will you attend?">
-            <Choice active={attending} onClick={() => setAttending(true)} icon={<Check size={20} />} title="Count me in" hint="I'll be there" />
-            <Choice active={!attending} onClick={() => setAttending(false)} icon={<X size={20} />} title="Regretfully no" hint="I can't make it" />
-          </div>
-        </div>
-
-        <AnimatePresence initial={false}>
-          {attending && (
-            <motion.div
-              key="guests"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className="overflow-hidden"
-            >
-              <div className="grid gap-3">
-                <div className="flex items-center justify-between">
-                  <span className={eyebrow}>Who&apos;s coming?</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-500/10 px-2.5 py-1 text-xs font-semibold text-accent-700 dark:text-accent-300">
-                    <Users size={13} />
-                    {Math.min(total, 10)} {Math.min(total, 10) === 1 ? "guest" : "guests"}
-                  </span>
+      <form onSubmit={onSubmit} className="grid grid-cols-2 gap-x-5 gap-y-7">
+        {parts
+          .filter((p) => !p.hidden)
+          .map((p) => (
+            <Fragment key={p.key}>
+              {p.key === "submit" && error && (
+                <div className="col-span-2">
+                  <Alert variant="error" closable onClose={() => setError(null)}>{error}</Alert>
                 </div>
-                <div className="grid gap-4 rounded-2xl bg-surface-muted p-4 sm:grid-cols-2 sm:gap-8 sm:p-5">
-                  <Counter label="Adults" hint="Including you" value={adults} min={1} max={9} onChange={setAdults} />
-                  <Counter label="Kids" hint="Under 12" value={kids} min={0} max={9} onChange={setKids} />
-                </div>
-                {total > 10 && <p className="text-xs text-soft">We can take up to 10 guests per reply — the first 10 will be counted.</p>}
+              )}
+              <div
+                data-rsvp-part={p.key}
+                className={`${WIDTH[p.width]} ${p.width === "fit" ? FIT_ALIGN[p.align] : ""} ${TEXT_ALIGN[p.align]}`}
+                style={{ zoom: ZOOM[p.size] }}
+              >
+                {content[p.key](p)}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="grid gap-2">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="message" className={eyebrow}>Notes / dietary needs</Label>
-            <span className="text-[11px] tabular-nums text-soft">{noteLength}/500</span>
-          </div>
-          <Textarea id="message" name="message" variant="filled" rows={3} maxLength={500} placeholder="Leave a note for the hosts…" onChange={(e) => setNoteLength(e.target.value.length)} />
-        </div>
+            </Fragment>
+          ))}
 
         {/* honeypot — hidden from humans */}
         <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
-
-        {error && <Alert variant="error" closable onClose={() => setError(null)}>{error}</Alert>}
-
-        <div className="grid gap-3">
-          <Button type="submit" size="lg" shape="pill" loading={loading} className="w-full font-semibold">
-            {loading ? "Sending…" : (<>{attending ? "Send my RSVP" : "Send my reply"} <ArrowRight size={17} className="ml-1" /></>)}
-          </Button>
-          <p className="flex items-center justify-center gap-1.5 text-xs text-soft">
-            <Lock size={12} /> We only use your email to send your confirmation.
-          </p>
-        </div>
       </form>
     </div>
   );

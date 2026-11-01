@@ -12,7 +12,7 @@ import type { Settings } from "@/lib/settings-shared";
  * portals (dropdowns, dialogs) pick it up too.
  */
 /** The admin app keeps its own fixed look; only the page preview inside it follows the site theme. */
-const ADMIN_THEME: Settings["theme"] = { mode: "light", accent: "#18181b", design: "bento" };
+const ADMIN_THEME: Settings["theme"] = { mode: "light", accent: "#18181b", design: "bento", font: "playful" };
 
 export default function Providers({ theme: siteTheme, children }: { theme: Settings["theme"]; children: React.ReactNode }) {
   const theme = usePathname().startsWith("/admin") ? ADMIN_THEME : siteTheme;
@@ -22,7 +22,7 @@ export default function Providers({ theme: siteTheme, children }: { theme: Setti
 
   return (
     <ThemeProvider isolated mode={theme.mode} accent={theme.accent} design={theme.design}>
-      <div className="page-bg flex min-h-screen flex-col text-fg">{children}</div>
+      <div data-font={theme.font} className="page-bg flex min-h-screen flex-col text-fg">{children}</div>
     </ThemeProvider>
   );
 }
