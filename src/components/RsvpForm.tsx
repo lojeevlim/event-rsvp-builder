@@ -71,7 +71,7 @@ function Choice({ active, onClick, icon, title, hint }: { active: boolean; onCli
   );
 }
 
-export default function RsvpForm({ title, subtitle, labels = {}, parts: partsProp }: { title: string; subtitle: string; labels?: Record<string, string>; parts?: RsvpPart[] }) {
+export default function RsvpForm({ title, subtitle, labels = {}, parts: partsProp, endpoint }: { title: string; subtitle: string; labels?: Record<string, string>; parts?: RsvpPart[]; /** where the reply is sent (the public event page sets it) */ endpoint?: string }) {
   /** the text for a key: what the editor set, else the default */
   const L = (key: string) => labels[key]?.trim() || RSVP_DEFAULTS[key];
   const [attending, setAttending] = useState(true);
@@ -90,7 +90,7 @@ export default function RsvpForm({ title, subtitle, labels = {}, parts: partsPro
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/rsvp", {
+      const res = await fetch(endpoint ?? "", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

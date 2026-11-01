@@ -42,7 +42,7 @@ function onColor(hex: string) {
 
 const external = (url: string) => (/^https?:\/\//i.test(url) ? { target: "_blank", rel: "noopener noreferrer" } : {});
 
-function BlockView({ b, edit }: { b: Block; edit: boolean }) {
+function BlockView({ b, edit, rsvpEndpoint }: { b: Block; edit: boolean; rsvpEndpoint?: string }) {
   switch (b.type) {
     case "badge":
       return <Badge variant="outline" size="lg" className="rounded-full bg-surface px-5 font-bold uppercase tracking-widest text-brand">{b.text}</Badge>;
@@ -105,7 +105,7 @@ function BlockView({ b, edit }: { b: Block; edit: boolean }) {
       return (
         <div id="rsvp" className="w-full max-w-2xl scroll-mt-4 text-left">
           <Card variant="outline" padding="lg" className="rounded-[28px] border border-border p-4 shadow-none sm:p-10">
-            <RsvpForm title={b.text} subtitle={b.text2} labels={b.labels} parts={b.parts} />
+            <RsvpForm title={b.text} subtitle={b.text2} labels={b.labels} parts={b.parts} endpoint={rsvpEndpoint} />
           </Card>
         </div>
       );
@@ -135,9 +135,9 @@ function runsOf(blocks: Block[]) {
   return runs;
 }
 
-function SectionBody({ sec, edit }: { sec: Section; edit?: EditProps }) {
+function SectionBody({ sec, edit, rsvpEndpoint }: { sec: Section; edit?: EditProps; rsvpEndpoint?: string }) {
   const node = (b: Block, i: number) => {
-    const view = <BlockView b={b} edit={!!edit} />;
+    const view = <BlockView b={b} edit={!!edit} rsvpEndpoint={rsvpEndpoint} />;
     return edit ? (
       <EditBlock key={b.id} block={b} sectionId={sec.id} index={i} selected={edit.selected.block === b.id} actions={edit.actions}>
         {view}
@@ -176,12 +176,12 @@ function SectionBody({ sec, edit }: { sec: Section; edit?: EditProps }) {
 }
 
 /** The whole public page. `s` must already have {name} applied. In the admin it is rendered with `edit` as a live, drag-and-drop preview. */
-export default function PageView({ s, edit }: { s: Settings; edit?: EditProps }) {
+export default function PageView({ s, edit, rsvpEndpoint }: { s: Settings; edit?: EditProps; rsvpEndpoint?: string }) {
   return (
     <main className="flow-root">
       {s.sections.map((sec, index) => {
         if (sec.hidden && !edit) return null;
-        const body = <SectionBody sec={sec} edit={edit} />;
+        const body = <SectionBody sec={sec} edit={edit} rsvpEndpoint={rsvpEndpoint} />;
         if (edit) {
           return (
             <EditSection key={sec.id} section={sec} index={index} count={s.sections.length} sticker={edit.sticker?.section === sec.id ? edit.sticker : null} limits={{ rsvp: s.sections.some((x) => x.blocks.some((b) => b.type === "rsvp")), stickers: s.decorations.length >= MAX_DECORATIONS, textCount: s.decorations.filter((d) => d.kind === "text").length, graffitiCount: s.decorations.filter((d) => d.kind === "graffiti").length }} selected={edit.selected.section === sec.id} actions={edit.actions} layer={edit.layer(sec.id)}>

@@ -26,8 +26,9 @@ import {
   type Settings,
 } from "@/lib/settings-shared";
 import {
-  ArrowDown, ArrowUp, CalendarDays, ChevronDown, GripVertical, Layers, LayoutTemplate, Palette, SlidersHorizontal, Trash2, Keyboard, Redo2, Undo2, MapPin, MoveHorizontal, MoveVertical, Maximize2, Plus, RotateCw, Sparkles, Sticker, Type, Wrench, X, type LucideIcon,
+  ArrowDown, ArrowLeft, ArrowUp, CalendarDays, ChevronDown, GripVertical, Layers, LayoutTemplate, Palette, SlidersHorizontal, Trash2, Keyboard, Redo2, Undo2, MapPin, MoveHorizontal, MoveVertical, Maximize2, Plus, RotateCw, Sparkles, Sticker, Type, Wrench, X, type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import PageView from "@/components/PageView";
 import { ICON_OPTIONS } from "@/components/icons";
@@ -96,7 +97,7 @@ async function uploadFiles(files: FileList | null, max: number, onError: (m: str
   for (const file of Array.from(files ?? []).slice(0, max)) {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       onError(`${file.name}: ${data?.error ?? "upload failed"}`);
@@ -107,7 +108,8 @@ async function uploadFiles(files: FileList | null, max: number, onError: (m: str
   return urls;
 }
 
-export default function AdminPanel({ initial }: { initial: Settings }) {
+/** The visual page editor for one event: its design is loaded from and saved to that event. */
+export default function AdminPanel({ initial, eventId, eventTitle, account }: { initial: Settings; eventId: string; eventTitle: string; account: { email: string; name: string; imageUrl: string } }) {
   const [s, setS] = useState(initial);
   const [savedJson, setSavedJson] = useState(() => JSON.stringify(initial));
   const [view, setView] = useState<"edit" | "rsvps">("edit");
@@ -349,7 +351,7 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
   async function save() {
     setSaving(true);
     setMsg(null);
-    const res = await fetch("/api/admin/settings", {
+    const res = await fetch(`/api/events/${eventId}/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(s),
@@ -358,7 +360,7 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
     if (res.ok) {
       setS(data);
       setSavedJson(JSON.stringify(data));
-      setMsg({ ok: true, text: "Saved — site updated" });
+      setMsg({ ok: true, text: "Saved — the event page is updated" });
     } else {
       setMsg({ ok: false, text: data?.error ?? "Could not save." });
     }
@@ -366,8 +368,8 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
   }
 
   async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    location.reload();
+    // Clerk's global handles the sign-out
+    await (window as unknown as { Clerk?: { signOut: (o?: { redirectUrl?: string }) => Promise<void> } }).Clerk?.signOut({ redirectUrl: "/" });
   }
 
   function onPreviewClick(e: React.MouseEvent) {
@@ -754,15 +756,24 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
     <>
       <div className="flex h-screen flex-col overflow-hidden bg-surface-muted text-fg">
         <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs sm:gap-3 sm:px-5 sm:py-3">
-          <h1 className="mr-1 text-xs font-semibold sm:mr-3 sm:text-sm tracking-tight">
-            Admin<span className="ml-2 font-normal text-soft max-sm:hidden">Page editor</span>
-          </h1>
+          <Link
+            href={`/dashboard/events/${eventId}`}
+            title="Back to the event"
+            aria-label={`Back to ${eventTitle}`}
+            className="group mr-1 flex min-w-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3.5 text-xs font-semibold shadow-sm transition-colors hover:border-accent-500 hover:bg-surface-muted sm:mr-3 sm:text-sm"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-600 text-white transition-transform group-hover:-translate-x-0.5">
+              <ArrowLeft size={15} strokeWidth={2.25} />
+            </span>
+            <span className="max-w-[8rem] truncate sm:max-w-[16rem]">{eventTitle}</span>
+            <span className="font-normal text-soft max-sm:hidden">· Design</span>
+          </Link>
           <ButtonGroup shape="pill">
             <SegmentButton active={view === "edit"} icon="palette" onClick={() => setView("edit")}>Edit page</SegmentButton>
             <SegmentButton active={view === "rsvps"} icon="users" onClick={() => setView("rsvps")}>RSVPs</SegmentButton>
           </ButtonGroup>
           {/* phones: on the first row, at the right end, level with the RSVPs tab */}
-          <UserMenu transition="blur" transitionDelay={60} className="ml-auto sm:hidden" name="Admin" avatarInitials="A" items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
+          <UserMenu transition="blur" transitionDelay={60} className="ml-auto sm:hidden" name={account.name} email={account.email} avatarSrc={account.imageUrl || undefined} avatarInitials={(account.name || account.email)[0].toUpperCase()} items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
           <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end sm:ml-auto">
             <Tooltip content="Undo (Ctrl/⌘ Z)" position="bottom" className="max-sm:hidden">
               <Button variant="ghost" size="sm" className="px-2" aria-label="Undo" disabled={hist.past === 0 || view !== "edit"} onClick={undo}><Undo2 size={16} /></Button>
@@ -774,7 +785,7 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
               <Button variant="ghost" size="sm" className="px-2" aria-label="Keyboard shortcuts" onClick={() => setHelpOpen(true)}><Keyboard size={16} /></Button>
             </Tooltip>
             {dirty && <Badge variant="soft" color="amber" dot>Unsaved changes</Badge>}
-            <UserMenu transition="blur" transitionDelay={60} className="max-sm:hidden" name="Admin" avatarInitials="A" items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
+            <UserMenu transition="blur" transitionDelay={60} className="max-sm:hidden" name={account.name} email={account.email} avatarSrc={account.imageUrl || undefined} avatarInitials={(account.name || account.email)[0].toUpperCase()} items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
           </div>
           {/* own row below lg: Event & theme and Preview on the left, Save on the right */}
           <div className={`flex w-full items-center justify-between gap-2 ${view === "edit" ? "lg:hidden" : ""}`}>
@@ -787,7 +798,7 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
           <div className="flex-1 overflow-auto p-6">
             <div className="mx-auto max-w-4xl">
               <Card variant="elevated" padding="lg">
-                <RsvpList />
+                <RsvpList eventId={eventId} />
               </Card>
             </div>
           </div>
