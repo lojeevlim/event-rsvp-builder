@@ -21,8 +21,8 @@ export type EditProps = {
 };
 
 const BG = { white: "bg-surface", cream: "bg-cream", brand: "bg-brand text-white", ink: "bg-accent-900 text-white", plain: "" };
-const PAD = { sm: "py-12", md: "py-16", lg: "py-20" };
-const HEAD = { sm: "text-2xl", md: "text-3xl md:text-4xl", lg: "text-4xl md:text-5xl", xl: "text-5xl md:text-7xl" };
+const PAD = { sm: "py-10 md:py-12", md: "py-12 md:py-16", lg: "py-16 md:py-20" };
+const HEAD = { sm: "text-2xl", md: "text-2xl sm:text-3xl md:text-4xl", lg: "text-3xl sm:text-4xl md:text-5xl", xl: "text-4xl sm:text-5xl md:text-7xl" };
 const TEXT = { sm: "text-sm", md: "text-base", lg: "text-lg", xl: "text-xl" };
 const EMOJI = { sm: "text-3xl", md: "text-5xl", lg: "text-6xl", xl: "text-8xl" };
 // gallery: how many pictures per row (small = many small ones … extra large = one big one)
@@ -48,10 +48,10 @@ function BlockView({ b, edit }: { b: Block; edit: boolean }) {
       return <Badge variant="outline" size="lg" className="rounded-full bg-surface px-5 font-bold uppercase tracking-widest text-brand">{b.text}</Badge>;
     case "heading": {
       const Tag = b.size === "xl" ? "h1" : "h2";
-      return <Tag className={`${HEAD[b.size]} ${TONE[b.tone]} font-extrabold leading-[1.05] ${b.caps ? "uppercase" : ""}`}>{b.text}</Tag>;
+      return <Tag className={`${HEAD[b.size]} ${TONE[b.tone]} font-extrabold leading-[1.05] ${b.caps ? "uppercase" : ""} text-balance break-words`}>{b.text}</Tag>;
     }
     case "text":
-      return <p className={`${TEXT[b.size]} ${TONE[b.tone]} max-w-2xl whitespace-pre-line group-data-[wide=true]/sec:max-w-5xl`}>{b.text}</p>;
+      return <p className={`${TEXT[b.size]} ${TONE[b.tone]} max-w-2xl break-words whitespace-pre-line group-data-[wide=true]/sec:max-w-5xl`}>{b.text}</p>;
     case "script":
       return <p className="font-comic text-2xl tracking-wide text-amber-500">{b.text}</p>;
     case "button":
@@ -77,9 +77,9 @@ function BlockView({ b, edit }: { b: Block; edit: boolean }) {
       return <span className={EMOJI[b.size]}>{b.text}</span>;
     case "card": {
       const inner = (
-        <Card variant="outline" padding="lg" hoverable={!!b.url} className={`w-full rounded-[28px] text-center ${b.url ? "border-brand" : ""}`}>
+        <Card variant="outline" padding="lg" hoverable={!!b.url} className={`w-full rounded-[28px] !p-5 sm:!p-8 text-center ${b.url ? "border-brand" : ""}`}>
           <div className="flex justify-center"><BlockIcon name={b.icon} size={40} /></div>
-          <h3 className="mt-3 text-2xl font-extrabold text-ink">{b.text}</h3>
+          <h3 className="mt-3 text-xl font-extrabold text-ink sm:text-2xl">{b.text}</h3>
           <p className="mt-3 text-lg font-bold text-ink">{b.text2}</p>
           {b.text3 && <p className="text-soft">{b.text3}</p>}
         </Card>
@@ -93,7 +93,7 @@ function BlockView({ b, edit }: { b: Block; edit: boolean }) {
     case "step":
       return (
         <Card variant="outline" padding="md" className="relative w-full rounded-3xl text-left">
-          <span className="absolute -left-[3.25rem] top-6 h-5 w-5 rounded-full bg-brand ring-4 ring-cream" />
+          <span className="absolute -left-[2.25rem] top-6 sm:-left-[3.25rem] h-5 w-5 rounded-full bg-brand ring-4 ring-cream" />
           <Badge variant="soft" size="sm" className="font-bold">{b.text}</Badge>
           <h3 className="mt-2 text-xl font-extrabold text-ink">{b.text2}</h3>
           <p className="mt-1 text-soft">{b.text3}</p>
@@ -157,14 +157,14 @@ function SectionBody({ sec, edit }: { sec: Section; edit?: EditProps }) {
       }
     >
       <SectionEffect kind={sec.effect} />
-      <div className={`group/sec relative z-10 mx-auto flex flex-col items-center gap-5 text-center ${sec.wide ? "max-w-6xl" : "max-w-3xl"}`} data-wide={sec.wide}>
+      <div className={`group/sec relative z-10 mx-auto flex flex-col items-center gap-4 text-center md:gap-5 ${sec.wide ? "max-w-6xl" : "max-w-3xl"}`} data-wide={sec.wide}>
         {runsOf(sec.blocks).map((run) =>
           run.kind === "single" ? (
             node(run.items[0].b, run.items[0].i)
           ) : (
             <div
               key={run.items[0].b.id}
-              className={run.kind === "step" ? "relative mt-4 flex w-full flex-col gap-6 border-l border-dashed border-line pl-10" : "mt-2 flex w-full flex-col gap-6"}
+              className={run.kind === "step" ? "relative mt-4 flex w-full flex-col gap-5 border-l border-dashed border-line pl-6 sm:pl-10 md:gap-6" : "mt-2 flex w-full flex-col gap-6"}
             >
               {run.items.map(({ b, i }) => node(b, i))}
             </div>
@@ -190,7 +190,7 @@ export default function PageView({ s, edit }: { s: Settings; edit?: EditProps })
           );
         }
         return (
-          <div key={sec.id} data-section={sec.id} className={`decor-host relative ${sec.card ? "mx-auto my-8 w-[calc(100%-1.5rem)] max-w-7xl rounded-[64px] border border-border shadow-[0_10px_28px_-18px_rgba(0,0,0,0.25)] overflow-hidden" : ""}`}>
+          <div key={sec.id} data-section={sec.id} className={`decor-host relative ${sec.card ? "mx-auto my-5 w-[calc(100%-1rem)] md:my-8 md:w-[calc(100%-1.5rem)] max-w-7xl rounded-[32px] border md:rounded-[64px] border-border shadow-[0_10px_28px_-18px_rgba(0,0,0,0.25)] overflow-hidden" : ""}`}>
             {body}
             <Decorations items={s.decorations.filter((d) => d.section === sec.id)} />
           </div>

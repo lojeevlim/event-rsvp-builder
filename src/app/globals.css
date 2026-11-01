@@ -285,3 +285,8 @@ h1, h2, h3, .font-display {
   100% { opacity: 0; transform: translate(-18px, 18px); }
 }
 @media (prefers-reduced-motion: reduce) { .fx-star, .fx-firefly { display: none; } }
+
+/* lojee-ui's "particles" tail trails opposite to the way an element seems to move while its scroller scrolls (scrolling down = element
+   rises = tail below). A sticky element holds still on screen, so relative to the content it moves the other way: flip the trail. */
+.fx-invert .lojee-anim-particles[data-dir="down"] { --s: -1; }
+.fx-invert .lojee-anim-particles[data-dir="up"] { --s: 1; }

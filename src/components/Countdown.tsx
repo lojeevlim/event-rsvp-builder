@@ -32,12 +32,12 @@ export default function Countdown({ target, label, light }: { target: string; la
 
   return (
     <div className={`w-full ${light ? "text-[color:var(--on-bg,#fff)]" : "text-ink"}`}>
-      <div className="flex items-center justify-center gap-5">
+      <div className="flex items-center justify-center gap-3 sm:gap-5">
         <span aria-hidden className="h-px max-w-20 flex-1 bg-current opacity-40" />
-        <p className="text-base font-extrabold uppercase tracking-[0.3em] md:text-lg">{label}</p>
+        <p className="text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base sm:tracking-[0.3em] md:text-lg">{label}</p>
         <span aria-hidden className="h-px max-w-20 flex-1 bg-current opacity-40" />
       </div>
-      <div className="mx-auto mt-7 grid max-w-3xl grid-cols-4 gap-3 md:gap-5">
+      <div className="mx-auto mt-5 grid max-w-3xl grid-cols-4 gap-2 sm:mt-7 sm:gap-3 md:gap-5">
         {items.map(([name, value]) => (
           <Stat
             key={name}
@@ -45,8 +45,8 @@ export default function Countdown({ target, label, light }: { target: string; la
             value={value}
             classNames={{
               root: `items-center justify-center rounded-2xl border-0 py-3 text-center shadow-none ring-1 ${light ? "bg-[color-mix(in_oklab,var(--on-bg,#fff)_15%,transparent)] ring-[color-mix(in_oklab,var(--on-bg,#fff)_25%,transparent)]" : "bg-line ring-line"}`,
-              value: `font-display text-4xl font-bold tabular-nums md:text-5xl ${light ? "text-[color:var(--on-bg,#fff)]" : "text-ink"}`,
-              label: `text-xs font-semibold uppercase tracking-wider ${light ? "text-[color:var(--on-bg,#fff)] opacity-85" : "text-soft"}`,
+              value: `font-display text-3xl font-bold tabular-nums sm:text-4xl md:text-5xl ${light ? "text-[color:var(--on-bg,#fff)]" : "text-ink"}`,
+              label: `text-[10px] font-semibold uppercase tracking-wide sm:text-xs sm:tracking-wider ${light ? "text-[color:var(--on-bg,#fff)] opacity-85" : "text-soft"}`,
             }}
           />
         ))}

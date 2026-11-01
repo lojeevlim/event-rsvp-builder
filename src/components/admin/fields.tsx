@@ -41,6 +41,9 @@ export function TextField({
   );
 }
 
+// lojee-ui renders a hidden native <select value=…>; changes arrive through onOptionSelect, so this only silences React's "value without onChange" warning
+const noop = () => {};
+
 export function SelectField<T extends string>({
   label,
   value,
@@ -54,7 +57,7 @@ export function SelectField<T extends string>({
 }) {
   return (
     <Field label={label}>
-      <Select size="sm" value={value} options={options.map(([v, l]) => ({ value: v, label: l }))} onOptionSelect={(v) => onChange(v as T)} />
+      <Select size="sm" value={value} options={options.map(([v, l]) => ({ value: v, label: l }))} onOptionSelect={(v) => onChange(v as T)} onChange={noop} />
     </Field>
   );
 }

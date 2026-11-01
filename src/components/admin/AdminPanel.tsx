@@ -47,6 +47,7 @@ import {
   ThemeProvider,
   Toast,
   Tooltip,
+  UserMenu,
 } from "@/components/ui";
 import RsvpList from "./RsvpList";
 import { ColorField, Grip, SelectField, SliderField, SwitchField, TextField, useReorder } from "./fields";
@@ -111,6 +112,12 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [leftOpen, setLeftOpen] = useState(false);
+  // "Content" list: a collapsible bar under the preview on phones, always open in the desktop sidebar
+  const [addedOpen, setAddedOpen] = useState(false);
+  // "Event & theme" dropdown: controlled so the phone layout can give it a close button
+  const [themeOpen, setThemeOpen] = useState(false);
+  // section settings: on phones the body can be folded away, leaving just its header
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // settings live in floating, draggable panels (the toolbox itself is a permanent icon strip)
   // the element / sticker that was just added: closing its panel untouched with ✕ takes it back out again
   const [fresh, setFresh] = useState<{ kind: "block" | "sticker"; id: string; snapshot: string } | null>(null);
@@ -689,53 +696,80 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
     </button>
   );
 
+  // Event & theme, View page and Save: in the header, or (phones, edit view) floating above the "Content" bar
+  const actionButtons = (parts: ("theme" | "view" | "save")[], compact = false) => (
+    <>
+      {parts.includes("theme") && view === "edit" && (
+        <Popover
+          transition="blur"
+          transitionDelay={60}
+          open={themeOpen}
+          onOpenChange={setThemeOpen}
+          position="bottom"
+          classNames={{ panel: "fixed inset-x-0 mx-auto sm:inset-x-auto sm:mx-0 sm:left-4 sm:right-auto top-14 sm:top-16 w-[min(92vw,360px)] translate-x-0 z-50 p-5 shadow-xl max-h-[calc(100dvh-4.5rem)] overflow-y-auto" }}
+          content={
+            <>
+              <div className="-mt-2 mb-2 flex items-center justify-between sm:hidden">
+                <span className="text-xs font-bold uppercase tracking-wide text-soft">Event &amp; theme</span>
+                <Button variant="ghost" size="sm" icon="x" iconOnly aria-label="Close event and theme" onClick={() => setThemeOpen(false)} />
+              </div>
+              <ThemeTool s={s} setS={setS} onPickType={setPendingType} />
+            </>
+          }
+        >
+          <Tooltip content="Event & theme" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
+            <Button size="sm" shape="pill" aria-label="Event and theme" className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`}>
+              <CalendarDays size={15} className={compact ? "" : "mr-1"} /> <span className={compact ? "hidden" : ""}>Event &amp; theme</span> <ChevronDown size={14} className={`ml-1 opacity-70 ${compact ? "hidden" : "max-sm:hidden"}`} />
+            </Button>
+          </Tooltip>
+        </Popover>
+      )}
+      {parts.includes("view") && <Tooltip content="View page — see it as visitors will, including unsaved changes" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
+        <Button size="sm" shape="pill" icon="eye" aria-label="View page" className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`} onClick={() => setPreviewing(true)}><span className={compact ? "hidden" : ""}>View page</span></Button>
+      </Tooltip>}
+      {parts.includes("save") && view === "edit" && (
+        <Tooltip content="Save changes — publish to the live site" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
+          <Button size="sm" icon="save" aria-label="Save changes" shape="pill" className={compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"} animation={dirty ? "particles" : undefined} loading={saving} disabled={saving || !dirty} onClick={save}>
+            <span className={compact ? "hidden" : ""}>Save changes</span>
+          </Button>
+        </Tooltip>
+      )}
+    </>
+  );
+
   const layerSection = curSection ?? s.sections[0];
   const confirmSection = s.sections.find((x) => x.id === confirmDelete);
 
   return (
     <>
       <div className="flex h-screen flex-col overflow-hidden bg-surface-muted text-fg">
-        <header className="flex flex-wrap items-center gap-3 border-b border-border bg-surface px-5 py-3">
-          <h1 className="mr-3 text-sm font-semibold tracking-tight">
-            Admin<span className="ml-2 font-normal text-soft">Page editor</span>
+        <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs sm:gap-3 sm:px-5 sm:py-3">
+          <h1 className="mr-1 text-xs font-semibold sm:mr-3 sm:text-sm tracking-tight">
+            Admin<span className="ml-2 font-normal text-soft max-sm:hidden">Page editor</span>
           </h1>
           <ButtonGroup shape="pill">
             <SegmentButton active={view === "edit"} icon="palette" onClick={() => setView("edit")}>Edit page</SegmentButton>
             <SegmentButton active={view === "rsvps"} icon="users" onClick={() => setView("rsvps")}>RSVPs</SegmentButton>
           </ButtonGroup>
-          {view === "edit" && (
-            <Popover
-              position="bottom"
-              classNames={{ panel: "left-0 w-[min(92vw,360px)] translate-x-0 z-50 p-5 shadow-xl" }}
-              content={<ThemeTool s={s} setS={setS} onPickType={setPendingType} />}
-            >
-              <Button size="sm" shape="pill" className="font-semibold shadow-sm">
-                <CalendarDays size={15} className="mr-1.5" /> Event &amp; theme <ChevronDown size={14} className="ml-1 opacity-70" />
-              </Button>
-            </Popover>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            <Tooltip content="Undo (Ctrl/⌘ Z)" position="bottom">
+          {/* phones: on the first row, at the right end, level with the RSVPs tab */}
+          <UserMenu transition="blur" transitionDelay={60} className="ml-auto sm:hidden" name="Admin" avatarInitials="A" items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
+          <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end sm:ml-auto">
+            <Tooltip content="Undo (Ctrl/⌘ Z)" position="bottom" className="max-sm:hidden">
               <Button variant="ghost" size="sm" className="px-2" aria-label="Undo" disabled={hist.past === 0 || view !== "edit"} onClick={undo}><Undo2 size={16} /></Button>
             </Tooltip>
-            <Tooltip content="Redo (Ctrl/⌘ Shift Z)" position="bottom">
+            <Tooltip content="Redo (Ctrl/⌘ Shift Z)" position="bottom" className="max-sm:hidden">
               <Button variant="ghost" size="sm" className="px-2" aria-label="Redo" disabled={hist.future === 0 || view !== "edit"} onClick={redo}><Redo2 size={16} /></Button>
             </Tooltip>
-            <Tooltip content="Keyboard shortcuts (?)" position="bottom">
+            <Tooltip content="Keyboard shortcuts (?)" position="bottom" className="max-sm:hidden">
               <Button variant="ghost" size="sm" className="px-2" aria-label="Keyboard shortcuts" onClick={() => setHelpOpen(true)}><Keyboard size={16} /></Button>
             </Tooltip>
             {dirty && <Badge variant="soft" color="amber" dot>Unsaved changes</Badge>}
-            <Tooltip content="See the page as visitors will, including unsaved changes" position="bottom">
-              <Button variant="outline" size="sm" icon="eye" onClick={() => setPreviewing(true)}>View page</Button>
-            </Tooltip>
-            <Button variant="ghost" size="sm" onClick={logout}>Log out</Button>
-            {view === "edit" && (
-              <Tooltip content="Publish changes to the live site" position="bottom">
-                <Button size="sm" icon="save" shape="pill" animation={dirty ? "particles" : undefined} loading={saving} disabled={saving || !dirty} onClick={save}>
-                  Save changes
-                </Button>
-              </Tooltip>
-            )}
+            <UserMenu transition="blur" transitionDelay={60} className="max-sm:hidden" name="Admin" avatarInitials="A" items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
+          </div>
+          {/* own row below lg: Event & theme and View page on the left, Save on the right */}
+          <div className={`flex w-full items-center justify-between gap-2 ${view === "edit" ? "lg:hidden" : ""}`}>
+            <div className="flex flex-wrap items-center gap-2">{actionButtons(["theme", "view"])}</div>
+            <div className="flex items-center">{actionButtons(["save"])}</div>
           </div>
         </header>
 
@@ -753,9 +787,9 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
               {leftOpen && curSection && (
                 <motion.aside
                   key="section-settings"
-                  initial={{ width: isLg ? 0 : "100%", opacity: 0 }}
-                  animate={{ width: isLg ? 290 : "100%", opacity: 1 }}
-                  exit={{ width: isLg ? 0 : "100%", opacity: 0 }}
+                  initial={{ width: isLg ? 0 : "100%", height: isLg ? "auto" : 0, opacity: 0 }}
+                  animate={{ width: isLg ? 290 : "100%", height: "auto", opacity: 1 }}
+                  exit={{ width: isLg ? 0 : "100%", height: isLg ? "auto" : 0, opacity: 0 }}
                   transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
                   className="max-h-[45vh] shrink-0 overflow-hidden border-b border-border bg-surface lg:max-h-none lg:border-b-0 lg:border-r"
                 >
@@ -775,11 +809,26 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
                             </span>
                           </div>
                         </div>
-                        <Button variant="ghost" size="sm" icon="x" iconOnly aria-label="Close section settings" onClick={() => setLeftOpen(false)} />
+                        <div className="flex shrink-0 items-center">
+                          <button
+                            type="button"
+                            aria-expanded={settingsOpen}
+                            aria-label={settingsOpen ? "Collapse section settings" : "Expand section settings"}
+                            onClick={() => setSettingsOpen((o) => !o)}
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-soft hover:bg-surface-muted hover:text-fg lg:hidden"
+                          >
+                            <ChevronDown size={16} className={`transition-transform ${settingsOpen ? "" : "-rotate-90"}`} />
+                          </button>
+                          <Button variant="ghost" size="sm" icon="x" iconOnly aria-label="Close section settings" onClick={() => setLeftOpen(false)} />
+                        </div>
                       </div>
-                      <div className="grid gap-6 p-4">
-                        <div id="left-section" className="scroll-mt-16">
-                          <SectionEditor sec={curSection} set={(p) => updateSection(curSection.id, p)} remove={() => setConfirmDelete(curSection.id)} />
+                      <div className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${settingsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr] lg:grid-rows-[1fr]"}`}>
+                        <div className={`min-h-0 overflow-hidden transition-[visibility] duration-300 ${settingsOpen ? "" : "max-lg:invisible"}`}>
+                          <div className="grid gap-6 p-4">
+                            <div id="left-section" className="scroll-mt-16">
+                              <SectionEditor sec={curSection} set={(p) => updateSection(curSection.id, p)} remove={() => setConfirmDelete(curSection.id)} />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -788,13 +837,18 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
             </AnimatePresence>
               <div
                 ref={previewRef}
-                className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-muted p-6"
+                className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-muted p-6 lg:pt-2"
                 onClickCapture={onPreviewClick}
                 onSubmitCapture={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                 }}
               >
+                {/* large screens: an oval bar of page actions above the page */}
+                <div data-action className="fx-invert sticky top-0 z-30 mb-3 mx-auto hidden max-w-[1100px] justify-between lg:flex">
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["theme", "view"])}</div>
+                  <div className="flex items-center rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["save"])}</div>
+                </div>
                 {/* only this preview takes the site theme — the admin UI itself stays as it is */}
                 <ThemeProvider isolated mode={s.theme.mode} accent={s.theme.accent} design={s.theme.design}>
                   <div className={`editing ${sel.section ? "has-selection" : ""} page-bg mx-auto max-w-[1100px] overflow-x-clip rounded-2xl pt-1 text-fg ring-1 ring-border`}>
@@ -804,17 +858,29 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
               </div>
 
             {/* always-visible list of everything added to the selected section */}
-            <aside className="max-h-48 w-full shrink-0 overflow-y-auto border-t border-border bg-surface lg:max-h-none lg:w-[210px] lg:border-l lg:border-t-0">
-              <div className="sticky top-0 z-10 flex h-[65px] shrink-0 items-center gap-3 border-b border-border bg-surface/95 px-3 backdrop-blur">
-                <div className="grid min-w-0 gap-1">
-                  <p className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.14em] text-soft">Added components</p>
-                  <span className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-full bg-[#2563eb] px-2.5 py-0.5 text-xs font-bold text-white shadow-sm">
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
-                    <span className="truncate">{layerSection?.name ?? "—"}</span>
+            <aside className="max-h-56 w-full shrink-0 overflow-y-auto overscroll-contain border-t border-border bg-surface lg:max-h-none lg:w-[176px] lg:border-l lg:border-t-0">
+              <button
+                type="button"
+                aria-expanded={addedOpen}
+                onClick={() => setAddedOpen((o) => !o)}
+                className={`sticky top-0 z-10 flex h-11 w-full shrink-0 items-center gap-3 bg-surface/95 px-3 text-left backdrop-blur lg:h-[65px] lg:cursor-default ${addedOpen ? "border-b border-border" : "max-lg:border-b-0"} lg:border-b lg:border-border`}
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-2 lg:justify-center">
+                  <span className="inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-[#2563eb] px-3.5 py-1 text-sm font-bold text-white shadow-sm">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
+                    <span className="truncate">{layerSection ? `${layerSection.name || "Untitled"} section` : "—"}</span>
                   </span>
                 </div>
-              </div>
+                {layerSection && <Badge variant="soft" size="xs" color="blue" className="lg:hidden">{layerSection.blocks.length + s.decorations.filter((d) => d.section === layerSection.id).length}</Badge>}
+                <ChevronDown size={16} className={`shrink-0 text-soft transition-transform lg:hidden ${addedOpen ? "" : "-rotate-90"}`} aria-hidden />
+              </button>
+              <div className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${addedOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr] lg:grid-rows-[1fr]"}`}>
+              <div className={`min-h-0 overflow-hidden transition-[visibility] duration-300 ${addedOpen ? "" : "max-lg:invisible"}`}>
               <div className="p-3">
+              <span className="mb-2 inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-ink px-3.5 py-1 text-sm font-bold text-white shadow-sm">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
+                <span className="truncate">Content</span>
+              </span>
               {layerSection ? (
                 <ElementList
               section={layerSection}
@@ -844,7 +910,9 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
               ) : (
                 <p className="text-xs text-soft">Select a section to see its elements.</p>
               )}
-            </div>
+              </div>
+              </div>
+              </div>
             </aside>
 
             {/* the toolbox is a permanent icon strip: click or drag a tool; settings open in floating panels */}
@@ -900,18 +968,20 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
         )}
 
         {stickerPanel && selKind === "sticker" && curDecor && !previewing && <Connector panel="sticker" selector={`[data-decor="${curDecor.id}"]`} />}
+        <AnimatePresence>
         {stickerPanel && selKind === "sticker" && curDecor && !previewing && (
-          <FloatingPanel panelId="sticker" title={`Edit ${KIND_LABEL[curDecor.kind].toLowerCase()}`} onClose={() => closeStickerPanel(true)} onDone={() => closeStickerPanel(false)} closeHint={justAddedSticker && untouched(curDecor) ? "Cancel — removes the sticker you just added" : "Close"}>
+          <FloatingPanel key="sticker" panelId="sticker" title={`Edit ${KIND_LABEL[curDecor.kind].toLowerCase()}`} onClose={() => closeStickerPanel(true)} onDone={() => closeStickerPanel(false)} closeHint={justAddedSticker && untouched(curDecor) ? "Cancel — removes the sticker you just added" : "Close"}>
             <StickerEditor
               cur={curDecor}
               update={(patch) => setS((prev) => ({ ...prev, decorations: prev.decorations.map((d) => (d.id === curDecor.id ? { ...d, ...patch } : d)) }))}
             />
           </FloatingPanel>
         )}
+        </AnimatePresence>
 
-
+        <AnimatePresence>
         {stickersPanel && !previewing && (
-          <FloatingPanel panelId="stickers" title="Text stickers" onClose={() => setStickersPanel(false)} onDone={() => setStickersPanel(false)}>
+          <FloatingPanel key="stickers" panelId="stickers" title="Text stickers" onClose={() => setStickersPanel(false)} onDone={() => setStickersPanel(false)}>
             <DecorTools
               section={(curSection ?? s.sections[0])?.id ?? ""}
               s={s}
@@ -928,13 +998,16 @@ export default function AdminPanel({ initial }: { initial: Settings }) {
             />
           </FloatingPanel>
         )}
+        </AnimatePresence>
 
         {elementPanel && curBlock && !previewing && <Connector panel="element" selector={`[data-block="${curBlock.id}"]`} />}
+        <AnimatePresence>
         {elementPanel && curBlock && !previewing && (
-          <FloatingPanel panelId="element" title={`Element: ${PALETTE.find((p) => p.type === curBlock.type)?.label ?? curBlock.type}`} onClose={() => closeElementPanel(true)} onDone={() => closeElementPanel(false)} closeHint={justAddedBlock && untouched(curBlock) ? "Cancel — removes the element you just added" : "Close"}>
+          <FloatingPanel key="element" panelId="element" title={`Element: ${PALETTE.find((p) => p.type === curBlock.type)?.label ?? curBlock.type}`} onClose={() => closeElementPanel(true)} onDone={() => closeElementPanel(false)} closeHint={justAddedBlock && untouched(curBlock) ? "Cancel — removes the element you just added" : "Close"}>
             <BlockEditor b={curBlock} set={(p) => updateBlock(curBlock.id, p)} remove={() => actions.removeBlock(curBlock.id)} setMsg={setMsg} />
           </FloatingPanel>
         )}
+        </AnimatePresence>
 
         <Toast
           open={!!msg}
@@ -1691,7 +1764,10 @@ function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", w
   const grab = useRef<{ dx: number; dy: number } | null>(null);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, filter: "blur(12px)", scale: 0.96 }}
+      animate={{ opacity: 1, filter: "blur(0px)", scale: 1, transition: { duration: 0.28, delay: 0.06, ease: [0.22, 1, 0.36, 1] } }}
+      exit={{ opacity: 0, filter: "blur(12px)", scale: 0.96, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } }}
       className="fixed z-40 flex max-h-[75vh] flex-col overflow-hidden rounded-2xl border border-border bg-surface text-fg shadow-2xl"
       style={{ left: pos.x, top: pos.y, width }}
       role="dialog"
@@ -1731,7 +1807,7 @@ function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", w
           Done
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -1790,7 +1866,7 @@ function ElementList({
       type="button"
       aria-expanded={!shut[text]}
       onClick={() => setShut((o) => ({ ...o, [text]: !o[text] }))}
-      className="mb-2 flex w-full items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-soft hover:text-fg"
+      className="col-span-full flex w-full items-center gap-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-soft hover:text-fg"
     >
       <Icon size={13} />
       <span className="flex-1 text-left">{text}</span>
@@ -1800,10 +1876,10 @@ function ElementList({
   );
   const row = "group relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-2 py-2 text-left transition-all hover:-translate-y-px";
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-1">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-1 sm:grid-cols-2 sm:gap-x-2 lg:grid-cols-[minmax(0,1fr)]">
         {heading("Components", section.blocks.length, Layers)}
-        {!shut.Components && section.blocks.length === 0 && <p className="text-xs text-soft">Nothing here yet — add an element from the toolbox.</p>}
+        {!shut.Components && section.blocks.length === 0 && <p className="col-span-full text-xs text-soft">Nothing here yet — add an element from the toolbox.</p>}
         {!shut.Components && section.blocks.map((b, i) => {
           const meta = PALETTE.find((p) => p.type === b.type);
           const Icon = meta?.Icon ?? Type;
@@ -1818,7 +1894,7 @@ function ElementList({
                   <span className="block truncate text-xs text-soft">{snippet || "—"}</span>
                 </span>
               </button>
-              <button type="button" aria-label={`Delete ${meta?.label ?? b.type}`} onClick={() => onDeleteBlock(b.id)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-soft opacity-0 transition-opacity hover:text-red-600 focus:opacity-100 group-hover:opacity-100">
+              <button type="button" aria-label={`Delete ${meta?.label ?? b.type}`} onClick={() => onDeleteBlock(b.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-soft opacity-0 transition-opacity hover:text-red-600 focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 lg:h-7 lg:w-7">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -1827,7 +1903,7 @@ function ElementList({
       </div>
 
       {stickers.length > 0 && (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-1">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-1 sm:grid-cols-2 sm:gap-x-2 lg:grid-cols-[minmax(0,1fr)]">
           {heading("Stickers", stickers.length, Sparkles)}
           {!shut.Stickers && stickers.map((d) => (
             <div key={d.id} className={`${row} ${d.id === selSticker ? "border-[#2563eb]/40 bg-[#2563eb]/[0.05] shadow-[0_2px_10px_rgba(37,99,235,0.12)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r before:bg-[#2563eb]" : "border-transparent hover:border-border hover:bg-surface-muted"}`}>
@@ -1838,7 +1914,7 @@ function ElementList({
                   <span className="block truncate text-xs text-soft">{d.kind === "image" || d.kind === "art" ? (d.kind === "art" ? d.content : "your picture") : d.content}</span>
                 </span>
               </button>
-              <button type="button" aria-label="Delete sticker" onClick={() => onDeleteSticker(d.id)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-soft opacity-0 transition-opacity hover:text-red-600 focus:opacity-100 group-hover:opacity-100">
+              <button type="button" aria-label="Delete sticker" onClick={() => onDeleteSticker(d.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-soft opacity-0 transition-opacity hover:text-red-600 focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 lg:h-7 lg:w-7">
                 <Trash2 size={14} />
               </button>
             </div>

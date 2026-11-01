@@ -42,4 +42,5 @@ export {
   ThemeSwitcher,
   Toast,
   Tooltip,
+  UserMenu,
 } from "lojee-ui";
