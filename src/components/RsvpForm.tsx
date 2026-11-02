@@ -6,7 +6,7 @@ import { ArrowRight, Check, Lock, Mail, Minus, PartyPopper, Plus, Users, X } fro
 import { Alert, Button, Input, Label, Textarea } from "@/components/ui";
 import { resolveRsvpParts, RSVP_DEFAULTS, type RsvpPart, type RsvpPartKey } from "@/lib/settings-shared";
 
-type Result = { attending: boolean; guests: number; name: string; email: string } | null;
+type Result = { attending: boolean; guests: number; name: string; email: string; emailFailed: boolean } | null;
 
 // how each piece sits in the form's two-column grid, and how its size and alignment are applied
 const WIDTH = { half: "col-span-2 sm:col-span-1", full: "col-span-2", fit: "col-span-2 w-fit" } as const;
@@ -104,7 +104,7 @@ export default function RsvpForm({ title, subtitle, labels = {}, parts: partsPro
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
-      setDone({ attending, guests, name: String(f.get("name") ?? ""), email: String(f.get("email") ?? "") });
+      setDone({ attending, guests, name: String(f.get("name") ?? ""), email: String(f.get("email") ?? ""), emailFailed: attending && data.emailSent === false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -126,7 +126,7 @@ export default function RsvpForm({ title, subtitle, labels = {}, parts: partsPro
         <div className="grid gap-2">
           <h3 className="font-display text-3xl font-bold">{done.attending ? L("doneYesTitle") : L("doneNoTitle")}</h3>
           <p className="mx-auto max-w-sm text-sm text-soft">
-            {done.attending ? L("doneYesText") : L("doneNoText")}
+            {done.attending ? (done.emailFailed ? "Your reply is saved. We couldn't send the confirmation email just now, but the host has your answer." : L("doneYesText")) : L("doneNoText")}
           </p>
         </div>
         <dl className="grid w-full max-w-sm gap-px overflow-hidden rounded-2xl bg-border text-left text-sm ring-1 ring-border">
@@ -134,7 +134,7 @@ export default function RsvpForm({ title, subtitle, labels = {}, parts: partsPro
             ["Name", done.name],
             ["Reply", done.attending ? "Attending" : "Not attending"],
             ...(done.attending ? [["Guests", String(done.guests)]] : []),
-            ["Confirmation to", done.email],
+            ...(done.attending && !done.emailFailed ? [["Confirmation to", done.email]] : []), // a decline gets no email
           ].map(([k, v]) => (
             <div key={k} className="flex items-baseline justify-between gap-4 bg-surface px-4 py-3">
               <dt className="text-soft">{k}</dt>

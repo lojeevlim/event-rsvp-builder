@@ -89,9 +89,9 @@ export function renderEmailHtml(t: EmailTemplate, v: EmailVars): string {
     safeLink && t.buttonLabel
       ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto 4px"><tr><td style="border-radius:999px;background:${t.accent}"><a href="${esc(safeLink)}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:bold;color:${onColor(t.accent)};text-decoration:none">${esc(fill(t.buttonLabel, v))}</a></td></tr></table>`
       : "";
-  return `<!doctype html><html><body style="margin:0;padding:24px;background:${t.background};font-family:Arial,Helvetica,sans-serif">
+  return `<!doctype html><html><body style="margin:0;padding:16px;background:${t.background};font-family:Arial,Helvetica,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-<table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e4e4e7">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e4e4e7">
 <tr><td align="center" style="padding:30px 24px;background:${t.accent};color:${onColor(t.accent)}">
 <div style="font-size:12px;letter-spacing:4px;opacity:.75">${esc(fill(t.heading, v)).toUpperCase()}</div>
 <div style="font-size:26px;font-weight:bold;margin:10px 0 0">${esc(v.event)}</div></td></tr>

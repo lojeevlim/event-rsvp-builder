@@ -1,27 +1,42 @@
-# Production setup: Vercel, Neon, Clerk, Resend and R2
+# Production setup: Vercel, Neon, Clerk, Gmail and R2
 
 How the app runs in production, which service does what, and how to set each one up. For what the app does for its users, see [product-guide.md](product-guide.md).
 
 ## Overview
 
-Event RSVP is a Next.js 16 app with many hosts, each with their own events. It needs **Neon** and **Clerk** to run at all. Resend and R2 are strongly recommended in production; without them it falls back to Gmail and to local files, which do not work on Vercel.
+Event RSVP is a Next.js 16 app with many hosts, each with their own events. It needs **Neon** and **Clerk** to run at all. For email you need a **Gmail** account with an app password (free, no domain); **R2** is needed for uploaded images in production, since Vercel has no disk. See "Start free, scale later" below.
 
 | Need | Service | Required | Used for |
 |---|---|---|---|
 | Hosting and deploys | Vercel | yes (production) | Runs the app, deploys from GitHub |
 | Database | Neon (Postgres) | **yes** | Users, events, guest replies, email templates and the email log |
 | Sign-in | Clerk | **yes** | Login, sign-up, profile, passwords |
-| Email | Resend | recommended | Invitation and confirmation emails (fallback: Gmail) |
+| Email | Gmail | **yes** (for email) | Invitation, confirmation and host "new reply" emails |
 | Image storage | Cloudflare R2 | recommended | Images uploaded in the editor (fallback: local folder) |
 | DNS (optional) | Cloudflare | no | Your domain's DNS records |
 
 If Neon or Clerk is not configured, signed-in pages show a "one service is missing" screen instead of the app. The landing page and public event pages never need Clerk, so they stay fast and cached.
 
+## Email: Gmail only
+
+All email goes through one Gmail account (free, no domain, about 500 a day). Set `GMAIL_USER` and `GMAIL_APP_PASSWORD`; the Emails tab shows "Sending with Gmail" and a warning if they are missing. Without them replies are still saved, but nobody is emailed.
+
+The whole site stops at **400 emails in 24 hours** (change it with `EMAIL_DAILY_LIMIT`), so Google never blocks the account. Guests' replies are still saved. The host's invitation limit per event (200 a day) stays as well.
+
+Notes:
+- Vercel's free Hobby plan is meant for personal, non-commercial use. Read its terms before running a business on it.
+- Clerk's live keys only work on a domain you own, so a free launch on a `*.vercel.app` address uses Clerk's test keys (a "Development mode" label shows on sign-in).
+- Gmail sends as your own address, may land in spam more often, and is shared by every host.
+
+### When you outgrow Gmail
+
+If the Emails tab warns the daily limit was reached, or hosts want mail from their own domain or it lands in spam, move to a transactional email service on a verified domain. That means replacing the sender in `src/lib/mailer.ts`; nothing else in the app needs to change.
+
 ## How it fits together
 
 ```
 Guest ──► /e/<slug> (public event page, cached)
-            └─ RSVP form ──► Neon (event_rsvps) ──► Resend (confirmation email)
+            └─ RSVP form ──► Neon (event_rsvps) ──► Gmail (confirmation email)
 
 Host ───► Clerk sign-in ──► /dashboard ──► events, replies, emails
             └─ /editor/<id> ──► Save ──► Neon (events.settings)
@@ -44,11 +59,11 @@ All variables are listed in `.env.example`. Set them in Vercel under Project, Se
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | **yes** | Clerk application keys |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` = `/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL` = `/sign-up` | yes | Where Clerk sends people to sign in or up |
 | `SUPER_ADMIN_EMAILS` | **yes** | Emails that become super admins at first sign-in (comma separated) |
-| `RESEND_API_KEY`, `EMAIL_FROM` | production | Resend key and sender, for example `Event RSVP <rsvp@your-domain.com>` |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | **yes** (for email) | Gmail sending: your address and a 16-character app password (Google account → Security → 2-Step Verification → App passwords) |
+| `EMAIL_DAILY_LIMIT` | optional | Site-wide daily email cap (default 400) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | production | Cloudflare R2 bucket and its API token |
 | `NEXT_PUBLIC_APP_URL` | optional | Public address of the site, used in event links and emails (defaults to the request's address) |
 | `MAX_EVENTS_PER_HOST`, `MAX_INVITES_PER_DAY` | optional | Limits, see the product guide |
-| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | fallback | Used for email only when `RESEND_API_KEY` is not set |
 
 ## Setting up each service
 
@@ -68,13 +83,11 @@ On first use the app creates these tables: `users`, `events`, `event_rsvps` (uni
 
 Everyone else who signs up is a host. To close registration or require email verification, change it in Clerk's dashboard.
 
-### 3. Resend (email)
+### 3. Gmail (email)
 
-1. Add and verify your domain in Resend (DNS records, which can live in Cloudflare).
-2. Create an API key and set `RESEND_API_KEY`.
-3. Set `EMAIL_FROM` to an address on that domain.
-
-For a first test you can leave `EMAIL_FROM` unset: mail then goes out from `onboarding@resend.dev`, which Resend only delivers to your own account email.
+1. Turn on 2-Step Verification for the Google account that will send the mail.
+2. Create an app password (Google account, Security, 2-Step Verification, App passwords).
+3. Set `GMAIL_USER` to that address and `GMAIL_APP_PASSWORD` to the 16-character password.
 
 ### 4. Cloudflare R2 (images)
 
@@ -100,7 +113,7 @@ cp .env.example .env   # fill in DATABASE_URL, the Clerk keys and SUPER_ADMIN_EM
 npm run dev            # http://localhost:3000
 ```
 
-Use a Clerk development instance and a Neon branch. Without Resend, set the Gmail variables to try emails; without R2, images are saved in `data/uploads`.
+Use a Clerk development instance and a Neon branch. Set the Gmail variables to try emails; without R2, images are saved in `data/uploads`.
 
 ## Checking that it works
 
@@ -112,6 +125,7 @@ After deploying, go through this list:
 4. Upload an image, save, reload: it still shows.
 5. Submit a reply on the public page as a guest: it appears on the event page with the right counts, and the confirmation email arrives.
 6. Submit the same email again: the form says it has already RSVP'd.
+6b. The host gets a "new reply" email at their sign-in address (switch it off under Event settings, "Email me when someone replies").
 7. On the Emails tab, change the invitation, press **Send a test to me**, and check the inbox.
 8. As super admin, disable the host: their public link shows "not available" and they land on the "account disabled" page. Enable them again.
 
@@ -134,7 +148,9 @@ The earlier version kept one page in `data/settings.json` and replies in Notion.
 | Nobody is a super admin | `SUPER_ADMIN_EMAILS` does not match the email used to sign in (it is read at sign-in) |
 | Redirected to "account disabled" | a super admin disabled the account |
 | Event link shows "not available" | the event is hidden, or its host is disabled |
-| No emails arrive | check `RESEND_API_KEY`, that `EMAIL_FROM` is on a verified domain, and the Emails tab log |
+| No emails arrive | the Emails tab shows any warning; check the log there. Check `GMAIL_USER` and `GMAIL_APP_PASSWORD`, and spam folders |
+| "Gmail rejected the login" | `GMAIL_APP_PASSWORD` must be an app password (not your normal password) and 2-Step Verification must be on |
+| "daily limit of 400 emails" | the site reached its cap; it resets as old sends pass 24 hours, or raise `EMAIL_DAILY_LIMIT` (staying under Gmail's own limit) |
 | Signed in but redirected back to sign-in | the Clerk keys do not match the Clerk instance, or the domain is not added in Clerk |
 
 ## Where the code is
@@ -145,7 +161,7 @@ The earlier version kept one page in `data/settings.json` and replies in Notion.
 | `src/lib/data.ts` | All database queries: users, events, replies, templates, log, stats |
 | `src/lib/auth.ts` | Checks the signed-in user against the database; page and API guards |
 | `src/lib/email-template.ts` | The customisable email layout, used by the preview and by the sender |
-| `src/lib/send-event-email.ts`, `src/lib/mailer.ts` | Render and send an event's email (Resend or Gmail) |
+| `src/lib/send-event-email.ts`, `src/lib/mailer.ts` | Render and send an event's email (Gmail) |
 | `src/lib/storage.ts` | Stores and fetches images (R2 or local folder) |
 | `src/proxy.ts` | Lets Clerk read the session on the signed-in routes |
 | `src/app/(app)/...` | Sign-in, dashboard, event pages, editor, profile and super admin |

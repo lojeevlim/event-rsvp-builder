@@ -33,7 +33,8 @@ export function NewEventDialog({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <Modal open onClose={() => !busy && onClose()} title="Create an event" className="max-w-md">
-      <form onSubmit={create} className="grid gap-4">
+      {/* tall enough that the open Type list (10 options) is not cut off by the dialog */}
+      <form onSubmit={create} className="grid min-h-[22rem] content-start gap-4">
         <TextField label="Event name" value={title} onChange={setTitle} maxLength={60} placeholder="e.g. Mia's 30th Birthday" />
         <SelectField label="Type" value={type} options={EVENT_TYPE_OPTIONS} onChange={setType} />
         <p className="text-xs text-soft">The type fills in ready-made text. You can change everything in the editor.</p>

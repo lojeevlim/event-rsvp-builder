@@ -11,7 +11,7 @@ export type Role = "super_admin" | "host";
 
 export type AppUser = { id: string; clerkId: string; email: string; name: string; /** profile photo address ("" = none: show the first letter) */ imageUrl: string; role: Role; active: boolean; createdAt: string; lastSeenAt: string };
 
-export type EventRow = { id: string; ownerId: string; slug: string; title: string; published: boolean; createdAt: string; updatedAt: string };
+export type EventRow = { id: string; ownerId: string; slug: string; title: string; published: boolean; notifyHost: boolean; createdAt: string; updatedAt: string };
 /** An event with its reply counts: `people` is the number of guests who said yes (each reply counts its guests). */
 export type EventSummary = EventRow & { replies: number; attending: number; notAttending: number; people: number };
 export type AdminEventSummary = EventSummary & { ownerEmail: string; ownerName: string; ownerActive: boolean };
@@ -49,6 +49,7 @@ const toEvent = (r: Row): EventRow => ({
   slug: String(r.slug),
   title: String(r.title),
   published: !!r.published,
+  notifyHost: r.notify_host !== false,
   createdAt: iso(r.created_at),
   updatedAt: iso(r.updated_at),
 });
@@ -223,6 +224,12 @@ export async function setEventPublished(id: string, published: boolean) {
   return rows[0] ? toEvent(rows[0]) : null;
 }
 
+export async function setEventNotifyHost(id: string, notifyHost: boolean) {
+  const q = await db();
+  const rows = await q`update events set notify_host = ${notifyHost}, updated_at = now() where id = ${id} returning *`;
+  return rows[0] ? toEvent(rows[0]) : null;
+}
+
 export async function deleteEvent(id: string) {
   const q = await db();
   await q`delete from events where id = ${id}`;
@@ -342,6 +349,13 @@ export async function saveTemplate(eventId: string, kind: EmailKind, data: Email
 export async function logEmail(eventId: string, kind: string, to: string, status: "sent" | "failed", error = "") {
   const q = await db();
   await q`insert into email_log (event_id, kind, to_email, status, error) values (${eventId}, ${kind}, ${to.toLowerCase()}, ${status}, ${error.slice(0, 300)})`;
+}
+
+/** Emails sent by the whole site in the last 24 hours: used to stay under the sending service's daily limit. */
+export async function emailsSentLast24h(): Promise<number> {
+  const q = await db();
+  const rows = await q`select count(*)::int as n from email_log where status = 'sent' and sent_at > now() - interval '1 day'`;
+  return num(rows[0]?.n);
 }
 
 /** Invitations sent today for an event: used to cap how many one host can send. */

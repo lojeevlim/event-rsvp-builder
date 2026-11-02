@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { GridView } from "@/components/ui";
+import { Alert, AlertDialog, GridView } from "@/components/ui";
 import { NewEventDialog } from "@/components/NewEventButton";
 
 export type EventCard = { id: string; slug: string; title: string; published: boolean; createdAt: string; replies: number; attending: number; notAttending: number; people: number };
@@ -11,6 +11,8 @@ export type EventCard = { id: string; slug: string; title: string; published: bo
 export default function EventsGrid({ events }: { events: EventCard[] }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [removing, setRemoving] = useState<EventCard | null>(null); // the event waiting for "Remove" confirmation
+  const [error, setError] = useState("");
   const byId = new Map(events.map((e) => [String(e.id), e]));
 
   return (
@@ -30,6 +32,7 @@ export default function EventsGrid({ events }: { events: EventCard[] }) {
           { label: "Open", value: "open", icon: "folder" },
           { label: "Edit design", value: "design", icon: "pencil" },
           { label: "Preview", value: "view", icon: "globe" },
+          { label: "Remove event", value: "remove", icon: "trash-2", color: "danger" },
         ]}
         items={events.map((e) => ({
           id: e.id,
@@ -53,10 +56,31 @@ export default function EventsGrid({ events }: { events: EventCard[] }) {
           if (action.value === "open") router.push(`/dashboard/events/${ev.id}`);
           else if (action.value === "design") router.push(`/editor/${ev.id}`);
           else if (action.value === "view") window.open(`/e/${ev.slug}`, "_blank", "noopener,noreferrer");
+          else if (action.value === "remove") {
+            setError("");
+            setRemoving(ev);
+          }
         }}
         onCreate={() => setCreating(true)}
       />
+      {error && <Alert variant="error" closable onClose={() => setError("")} className="mt-4">{error}</Alert>}
       <NewEventDialog open={creating} onClose={() => setCreating(false)} />
+      <AlertDialog
+        open={!!removing}
+        onClose={() => setRemoving(null)}
+        variant="destructive"
+        title={`Remove “${removing?.title ?? ""}”?`}
+        description={`This permanently deletes the event page, its design and ${removing?.replies ?? 0} repl${removing?.replies === 1 ? "y" : "ies"}. It can't be undone.`}
+        confirmLabel="Remove event"
+        onConfirm={async () => {
+          const ev = removing;
+          setRemoving(null);
+          if (!ev) return;
+          const res = await fetch(`/api/events/${ev.id}`, { method: "DELETE" });
+          if (res.ok) router.refresh();
+          else setError((await res.json().catch(() => null))?.error ?? `Could not remove “${ev.title}”. Try again.`);
+        }}
+      />
     </>
   );
 }

@@ -16,7 +16,7 @@ npm run dev            # http://localhost:3000
 |---|---|
 | Neon | database (required) |
 | Clerk | sign-in (required) |
-| Resend | emails (recommended; Gmail fallback) |
+| Gmail | emails (free, app password) |
 | Cloudflare R2 | image uploads (recommended; local-folder fallback) |
 | Vercel | hosting and deploys |
 

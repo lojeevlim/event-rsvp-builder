@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { dbEnabled } from "./db";
@@ -14,7 +15,7 @@ export type Session = { status: "signed-out" } | { status: "disabled"; user: App
 const TEN_MINUTES = 10 * 60 * 1000;
 
 /** Validates the signed-in person against our database: creates their record on first visit and rejects disabled accounts. */
-export async function getSession(): Promise<Session> {
+export const getSession = cache(async (): Promise<Session> => {
   const { userId } = await auth();
   if (!userId) return { status: "signed-out" };
 
@@ -30,7 +31,7 @@ export async function getSession(): Promise<Session> {
     if (Date.now() - new Date(user.lastSeenAt).getTime() > TEN_MINUTES) void touchUser(user.id).catch(() => {});
   }
   return user.active ? { status: "ok", user } : { status: "disabled", user };
-}
+});
 
 /** For pages: the signed-in, enabled user, or a redirect. */
 export async function requireUser(): Promise<AppUser> {
