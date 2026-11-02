@@ -15,7 +15,7 @@ export async function sendEventEmail(opts: { event: EventRow; kind: EmailKind; t
     if (cap > 0 && (await emailsSentLast24h()) >= cap) {
       throw new Error(`The site has reached its daily limit of ${cap} emails. Emails will send again within 24 hours, or move to a bigger email plan.`);
     }
-    await sendMail({ to, subject: renderSubject(template, vars), html: renderEmailHtml(template, vars), replyTo, fromName: eventName });
+    await sendMail({ to, subject: renderSubject(template, vars), html: renderEmailHtml(template, vars, kind), replyTo, fromName: eventName });
     if (opts.log !== false) await logEmail(event.id, kind, to, "sent");
     return { ok: true as const };
   } catch (err) {

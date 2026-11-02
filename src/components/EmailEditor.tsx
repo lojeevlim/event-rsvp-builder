@@ -43,7 +43,7 @@ export default function EmailEditor({ eventId, link, eventName, published, initi
   const set = (patch: Partial<EmailTemplate>) => setDrafts((d) => ({ ...d, [kind]: { ...d[kind], ...patch } }));
 
   const vars = { guest: "Alex", event: eventName, link, guests: 2 };
-  const html = useMemo(() => renderEmailHtml(t, vars), [t, eventName, link]); // eslint-disable-line react-hooks/exhaustive-deps
+  const html = useMemo(() => renderEmailHtml(t, vars, kind), [t, kind, eventName, link]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [logTick, setLogTick] = useState(0);
   const loadLog = () => setLogTick((n) => n + 1);

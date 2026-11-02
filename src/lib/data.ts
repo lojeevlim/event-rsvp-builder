@@ -11,7 +11,7 @@ export type Role = "super_admin" | "host";
 
 export type AppUser = { id: string; clerkId: string; email: string; name: string; /** profile photo address ("" = none: show the first letter) */ imageUrl: string; role: Role; active: boolean; createdAt: string; lastSeenAt: string; /** when they agreed to the terms (null = not yet) */ termsAcceptedAt: string | null };
 
-export type EventRow = { id: string; ownerId: string; slug: string; title: string; published: boolean; notifyHost: boolean; createdAt: string; updatedAt: string };
+export type EventRow = { id: string; ownerId: string; slug: string; title: string; published: boolean; notifyHost: boolean; /** where reply emails go instead of the owner's sign-in address ("" = the owner's address) */ notifyEmail: string; createdAt: string; updatedAt: string };
 /** An event with its reply counts: `people` is the number of guests who said yes (each reply counts its guests). */
 export type EventSummary = EventRow & { replies: number; attending: number; notAttending: number; people: number };
 export type AdminEventSummary = EventSummary & { ownerEmail: string; ownerName: string; ownerActive: boolean };
@@ -51,6 +51,7 @@ const toEvent = (r: Row): EventRow => ({
   title: String(r.title),
   published: !!r.published,
   notifyHost: r.notify_host !== false,
+  notifyEmail: String(r.notify_email ?? ""),
   createdAt: iso(r.created_at),
   updatedAt: iso(r.updated_at),
 });
@@ -233,6 +234,12 @@ export async function setEventPublished(id: string, published: boolean) {
 export async function setEventNotifyHost(id: string, notifyHost: boolean) {
   const q = await db();
   const rows = await q`update events set notify_host = ${notifyHost}, updated_at = now() where id = ${id} returning *`;
+  return rows[0] ? toEvent(rows[0]) : null;
+}
+
+export async function setEventNotifyEmail(id: string, notifyEmail: string) {
+  const q = await db();
+  const rows = await q`update events set notify_email = ${notifyEmail}, updated_at = now() where id = ${id} returning *`;
   return rows[0] ? toEvent(rows[0]) : null;
 }
 

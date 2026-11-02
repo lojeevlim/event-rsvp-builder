@@ -36,7 +36,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
         <RsvpList eventId={event.id} />
       </section>
 
-      {mine && <EventDangerZone eventId={event.id} title={event.title} published={event.published} notifyHost={event.notifyHost} />}
+      {mine && <EventDangerZone eventId={event.id} title={event.title} published={event.published} notifyHost={event.notifyHost} notifyEmail={event.notifyEmail} />}
     </div>
   );
 }

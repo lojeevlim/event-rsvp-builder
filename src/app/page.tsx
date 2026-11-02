@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarHeart, Link2, Mail, Palette, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight, CalendarHeart, Check, Link2, Mail, Palette, ShieldCheck, Users } from "lucide-react";
 import Logo from "@/components/Logo";
 import { linkButton } from "@/components/link-button";
 
@@ -33,33 +33,62 @@ export default function Landing() {
         </nav>
       </header>
 
-        <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-5 pb-16 pt-10 md:grid-cols-[1.1fr_0.9fr] md:pt-20">
+        <section className="relative mx-auto grid w-full max-w-6xl items-center gap-14 px-5 pb-20 pt-10 md:grid-cols-[1.1fr_0.9fr] md:pt-20">
+          {/* soft aurora behind the hero */}
+          <div aria-hidden className="hero-orb pointer-events-none absolute -left-32 top-0 -z-10 h-96 w-96 rounded-full bg-accent-500/20 blur-3xl" />
+          <div aria-hidden className="hero-orb pointer-events-none absolute -right-24 bottom-0 -z-10 h-[26rem] w-[26rem] rounded-full bg-accent-600/15 blur-3xl [animation-delay:-6s]" />
+
           <div>
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-soft">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Event invitations, simplified
+            <p className="anim-rise mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-surface/80 py-1.5 pl-2.5 pr-4 text-xs font-semibold uppercase tracking-[0.16em] text-soft shadow-sm backdrop-blur">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
+                <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Event invitations, simplified
             </p>
-            <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">Invitations people actually reply to.</h1>
-            <p className="mt-5 max-w-xl text-lg text-soft">Design a beautiful event page, share one link, and see at a glance who can come and who can&apos;t.</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/sign-up" className={linkButton("primary", "lg")}>Create your event</Link>
+            <h1 className="anim-rise text-4xl font-extrabold leading-[1.04] tracking-tight [--d:0.08s] sm:text-5xl md:text-6xl lg:text-7xl">
+              Invitations people <span className="hero-ink">actually reply to.</span>
+            </h1>
+            <p className="anim-rise mt-6 max-w-xl text-lg leading-relaxed text-soft [--d:0.16s] md:text-xl">Design a beautiful event page, share one link, and see at a glance who can come and who can&apos;t.</p>
+            <div className="anim-rise mt-9 flex flex-wrap items-center gap-3 [--d:0.24s]">
+              <Link href="/sign-up" className={`${linkButton("primary", "lg")} group gap-2 shadow-lg shadow-accent-600/25`}>
+                Create your event <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+              </Link>
               <Link href="/sign-in" className={linkButton("outline", "lg")}>Sign in</Link>
             </div>
+            <ul className="anim-rise mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-soft [--d:0.32s]">
+              {["Visual editor", "One shareable link", "Live guest counts"].map((t) => (
+                <li key={t} className="flex items-center gap-1.5"><Check size={16} className="text-emerald-600" strokeWidth={3} />{t}</li>
+              ))}
+            </ul>
           </div>
 
-          {/* a small illustration of the result: an invitation and its live counts */}
-          <div aria-hidden className="relative mx-auto w-full max-w-sm">
-            <div className="rotate-2 rounded-[32px] border border-border bg-surface p-7 text-center shadow-xl">
+          {/* an illustration of the result: an invitation, its live counts and a reply arriving */}
+          <div aria-hidden className="anim-rise relative mx-auto w-full max-w-sm [--d:0.2s]">
+            <div className="hero-float absolute -left-6 -top-5 z-20 flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-3.5 py-2.5 shadow-xl [animation-delay:-2s]">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500/15 text-sm font-extrabold text-emerald-600">M</span>
+              <span className="text-left text-xs leading-tight"><b className="block text-sm text-ink">Mia said yes 🎉</b><span className="text-soft">+2 guests · just now</span></span>
+            </div>
+            <div className="relative rotate-2 overflow-hidden rounded-[32px] border border-border bg-surface p-8 text-center shadow-[0_30px_70px_-25px_rgba(0,0,0,0.35)]">
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-accent-500 via-accent-600 to-accent-500" />
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-accent-600">You&apos;re invited</p>
               <p className="mt-3 text-3xl font-extrabold leading-tight">Dylan&apos;s 1st Birthday</p>
               <p className="mt-2 text-sm text-soft">Saturday · 6:00 PM · The Garden Room</p>
-              <div className="mx-auto mt-5 inline-flex rounded-full bg-accent-600 px-6 py-2.5 text-sm font-bold text-white">RSVP to the party</div>
+              <div className="mx-auto mt-6 inline-flex rounded-full bg-accent-600 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-accent-600/30">RSVP to the party</div>
             </div>
-            <div className="-mt-5 ml-auto w-[88%] -rotate-1 rounded-2xl border border-border bg-surface p-4 shadow-lg">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-soft">Replies so far</p>
+            <div className="hero-float relative z-10 -mt-6 ml-auto w-[90%] -rotate-1 rounded-2xl border border-border bg-surface p-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-soft">Replies so far</p>
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600">Live</span>
+              </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                 <div><p className="text-2xl font-extrabold text-emerald-600">18</p><p className="text-xs text-soft">can attend</p></div>
                 <div><p className="text-2xl font-extrabold text-rose-500">4</p><p className="text-xs text-soft">can&apos;t</p></div>
                 <div><p className="text-2xl font-extrabold">31</p><p className="text-xs text-soft">people</p></div>
+              </div>
+              <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-border">
+                <span className="w-[82%] rounded-full bg-emerald-500" />
+                <span className="ml-0.5 w-[18%] rounded-full bg-rose-400" />
               </div>
             </div>
           </div>

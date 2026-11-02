@@ -78,24 +78,48 @@ const onColor = (hex: string) => {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? "#18181b" : "#ffffff";
 };
 
+/** Table-based icons (email clients ignore SVG): a tick or an envelope in a white disc. */
+const ICONS = { check: "&#10003;", mail: "&#9993;", reply: "&#9993;" } as const;
+
+/** The shared premium layout for every email we send: coloured header with an icon disc, white card, soft footer. All inputs must already be escaped. */
+export function emailShell(o: { accent: string; background: string; icon: keyof typeof ICONS; kicker: string; title: string; subtitle?: string; bodyHtml: string; footer: string; preheader?: string }): string {
+  const on = onColor(o.accent);
+  const soft = on === "#ffffff" ? "rgba(255,255,255,.78)" : "rgba(24,24,27,.65)";
+  const disc = on === "#ffffff" ? "rgba(255,255,255,.18)" : "rgba(24,24,27,.10)";
+  return `<!doctype html><html><body style="margin:0;padding:0;background:${o.background};font-family:-apple-system,'Segoe UI',Roboto,Arial,Helvetica,sans-serif">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${o.preheader ?? o.title}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${o.background}"><tr><td align="center" style="padding:28px 14px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid rgba(0,0,0,.07);box-shadow:0 18px 40px -22px rgba(0,0,0,.35)">
+<tr><td align="center" style="padding:38px 28px 34px;background:${o.accent};background-image:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,0) 55%);color:${on}">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" width="56" height="56" style="width:56px;height:56px;border-radius:28px;background:${disc};font-size:26px;line-height:56px;font-weight:bold;color:${on}">${ICONS[o.icon]}</td></tr></table>
+<div style="margin-top:18px;font-size:11px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:${soft}">${o.kicker}</div>
+<div style="margin-top:8px;font-size:28px;line-height:1.2;font-weight:800;color:${on}">${o.title}</div>
+${o.subtitle ? `<div style="margin-top:8px;font-size:14px;color:${soft}">${o.subtitle}</div>` : ""}</td></tr>
+<tr><td style="padding:32px 32px 26px">${o.bodyHtml}</td></tr>
+<tr><td style="padding:0 32px"><div style="height:1px;background:#ececef;line-height:1px;font-size:1px">&nbsp;</div></td></tr>
+<tr><td align="center" style="padding:18px 32px 26px;font-size:12px;line-height:1.5;color:#a1a1aa">${o.footer}</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 /** The full HTML email. Everything a guest or host typed is escaped; only the link is turned into a button. */
-export function renderEmailHtml(t: EmailTemplate, v: EmailVars): string {
+export function renderEmailHtml(t: EmailTemplate, v: EmailVars, kind: EmailKind = "invitation"): string {
   const body = esc(fill(t.body, { ...v, link: "" }))
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#3f3f46">${p.replace(/\n/g, "<br>")}</p>`)
+    .map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#3f3f46">${p.replace(/\n/g, "<br>")}</p>`)
     .join("");
   const safeLink = /^https?:\/\//i.test(v.link) ? v.link : "";
   const button =
     safeLink && t.buttonLabel
-      ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto 4px"><tr><td style="border-radius:999px;background:${t.accent}"><a href="${esc(safeLink)}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:bold;color:${onColor(t.accent)};text-decoration:none">${esc(fill(t.buttonLabel, v))}</a></td></tr></table>`
+      ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px auto 6px"><tr><td style="border-radius:999px;background:${t.accent}"><a href="${esc(safeLink)}" style="display:inline-block;padding:15px 34px;font-size:15px;font-weight:bold;color:${onColor(t.accent)};text-decoration:none;border-radius:999px">${esc(fill(t.buttonLabel, v))}</a></td></tr></table>`
       : "";
-  return `<!doctype html><html><body style="margin:0;padding:16px;background:${t.background};font-family:Arial,Helvetica,sans-serif">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e4e4e7">
-<tr><td align="center" style="padding:30px 24px;background:${t.accent};color:${onColor(t.accent)}">
-<div style="font-size:12px;letter-spacing:4px;opacity:.75">${esc(fill(t.heading, v)).toUpperCase()}</div>
-<div style="font-size:26px;font-weight:bold;margin:10px 0 0">${esc(v.event)}</div></td></tr>
-<tr><td style="padding:28px 28px 22px">${body}${button}</td></tr>
-<tr><td align="center" style="padding:0 24px 24px;font-size:12px;color:#a1a1aa">${esc(fill(t.footer, v))}</td></tr>
-</table></td></tr></table></body></html>`;
+  return emailShell({
+    accent: t.accent,
+    background: t.background,
+    icon: kind === "confirmation" ? "check" : "mail",
+    kicker: esc(fill(t.heading, v)),
+    title: esc(v.event),
+    bodyHtml: body + button,
+    footer: esc(fill(t.footer, v)),
+    preheader: esc(fill(t.heading, v)),
+  });
 }

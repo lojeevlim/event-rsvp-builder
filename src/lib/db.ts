@@ -69,6 +69,7 @@ export function ensureSchema() {
       updated_at timestamptz not null default now()
     )`;
     await q`alter table events add column if not exists notify_host boolean not null default true`;
+    await q`alter table events add column if not exists notify_email text not null default ''`;
     await q`create index if not exists events_owner_idx on events (owner_id)`;
     await q`create table if not exists event_rsvps (
       id uuid primary key default gen_random_uuid(),
