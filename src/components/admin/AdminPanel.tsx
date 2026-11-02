@@ -882,7 +882,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                 }}
               >
                 {/* large screens: an oval bar of page actions above the page */}
-                <div data-action className="fx-invert sticky top-0 z-30 mb-3 mx-auto hidden max-w-[1100px] justify-between lg:flex">
+                <div data-action className="fx-invert sticky top-0 z-[60] mb-3 mx-auto hidden max-w-[1100px] justify-between lg:flex">
                   <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["theme", "view"], false, "bar")}</div>
                 </div>
                 {/* only this preview takes the site theme — the admin UI itself stays as it is */}

@@ -1,6 +1,9 @@
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
+import { GripVertical, Keyboard, Layers, MapPin, Plus, Redo2, Sparkles, Undo2, Wrench } from "lucide-react";
 import EventTabs from "@/components/EventTabs";
-import { Button, GridView, Icon, Skeleton } from "@/components/ui";
+import { Button, ButtonGroup, GridView, Icon, SegmentButton, Skeleton } from "@/components/ui";
+import { elementMeta, GROUPS } from "@/components/palette";
 import { EMAIL_KIND_HINT, EMAIL_PLACEHOLDERS } from "@/lib/email-template";
 
 /**
@@ -255,42 +258,235 @@ export function SuperSkeleton() {
   );
 }
 
-/** The design editor loads its whole canvas from the event, so this stands in for the editor's panels. */
+/** A placeholder of an exact size: `cls` carries the (responsive) height, `w` the width. */
+const slot = (cls: string, w: string, round = "rounded-md") => (
+  <div className={cls} style={{ width: w, maxWidth: "100%" }}>
+    <Skeleton variant="rect" height="100%" width="100%" className={round} />
+  </div>
+);
+
+/** A section of the page as PageView draws it: same padding, same centred max-w-3xl column (max-w-6xl when wide), same gaps; `card` gives the rounded, bordered card. */
+function PageSec({ pad, bg = "", card = false, wide = false, children }: { pad: "md" | "lg"; bg?: string; card?: boolean; wide?: boolean; children: ReactNode }) {
+  const body = (
+    <section className={`relative ${bg} ${pad === "lg" ? "py-16 md:py-20" : "py-12 md:py-16"} px-4`}>
+      <div className={`mx-auto flex flex-col items-center gap-4 text-center md:gap-5 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
+        {Array.isArray(children) ? children.map((c, i) => <div key={i} className="flex w-full flex-col items-center">{c}</div>) : children}
+      </div>
+    </section>
+  );
+  return card ? <div className="mx-auto my-8 w-[calc(100%-1.5rem)] max-w-7xl overflow-hidden rounded-[64px] border border-border shadow-[0_10px_28px_-18px_rgba(0,0,0,0.25)]">{body}</div> : body;
+}
+
+/** The editor: the real header labels, buttons, panel headings and tool icons; names, titles and the page itself are placeholders. Mirrors AdminPanel's layout piece for piece. */
 export function EditorSkeleton() {
+  const ghost = "pointer-events-none";
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-surface-muted" role="status" aria-label="Loading the editor">
-      <div className="flex items-center gap-3 border-b border-border bg-surface px-5 py-3">
-        {bar(36, 220, "rounded-full")}
-        {bar(36, 220, "rounded-full")}
-        <div className="ml-auto flex items-center gap-2">
-          {bar(32, 32)}
-          {bar(32, 32)}
+    <div className="flex h-screen flex-col overflow-hidden bg-surface-muted text-fg" role="status" aria-label="Loading the editor">
+      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs sm:gap-3 sm:px-5 sm:py-3">
+        <div className="mr-1 flex min-w-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-1 text-xs font-semibold shadow-sm sm:mr-3 sm:pr-3.5 sm:text-sm">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-600 text-white">
+            <Icon name="arrow-left" size={15} />
+          </span>
+          <span className="max-sm:hidden">{bar(14, 112)}</span>
+          <span className="font-normal text-soft max-sm:hidden">· Design</span>
+        </div>
+        <ButtonGroup shape="pill" className={ghost}>
+          <SegmentButton active icon="palette">Edit page</SegmentButton>
+          <SegmentButton active={false} icon="users">RSVPs</SegmentButton>
+        </ButtonGroup>
+        <div className="ml-auto flex items-center gap-2 max-sm:hidden">
+          <Button variant="ghost" size="sm" className="px-2" aria-label="Undo" disabled><Undo2 size={16} /></Button>
+          <Button variant="ghost" size="sm" className="px-2" aria-label="Redo" disabled><Redo2 size={16} /></Button>
+          <Button variant="ghost" size="sm" className="px-2" aria-label="Keyboard shortcuts" disabled><Keyboard size={16} /></Button>
           <Skeleton variant="circle" size={32} />
         </div>
-      </div>
-      <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-hidden p-6 lg:pt-2">
-          <div className="mx-auto mb-3 flex max-w-[1100px] justify-between">
-            {bar(44, 232, "rounded-full")}
-            {bar(44, 148, "rounded-full")}
+        <div className="ml-auto sm:hidden">
+          <Skeleton variant="circle" size={32} />
+        </div>
+        <div className="flex w-full items-center gap-2 lg:hidden">
+          <Button size="sm" shape="pill" icon="calendar-days" disabled className="font-semibold">Event &amp; theme</Button>
+          <Button size="sm" shape="pill" icon="eye" disabled className="font-semibold">Preview</Button>
+        </div>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-surface-muted p-6 lg:pt-2">
+          <div className="mx-auto mb-3 hidden max-w-[1100px] justify-between lg:flex">
+            <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">
+              <Button size="sm" shape="pill" icon="calendar-days" disabled className="font-semibold">Event &amp; theme</Button>
+              <Button size="sm" shape="pill" icon="eye" disabled className="font-semibold">Preview</Button>
+            </div>
           </div>
-          <div className="mx-auto grid max-w-[1100px] gap-4 rounded-2xl border border-border bg-surface p-10">
-            {bar(28, 160, "rounded-full")}
-            {bar(64, "70%")}
-            {bar(64, "55%")}
-            {bar(24, "80%")}
-            {bar(48, 220, "rounded-full")}
+          {/* the page, in the editor's left gutter: the standard page, section by section, with the real paddings, widths, gaps and element heights */}
+          <div className="mx-auto max-w-[1100px] overflow-hidden rounded-2xl bg-surface pt-1 ring-1 ring-border">
+            <main className="flow-root pl-12">
+              <PageSec card pad="lg">
+                {slot("h-[34px]", "10rem", "rounded-full")}
+                {slot("h-[38px] sm:h-[50px] md:h-[76px]", "min(100%, 30rem)")}
+                {slot("h-[38px] sm:h-[50px] md:h-[76px]", "min(100%, 22rem)")}
+                {slot("h-8", "16rem")}
+                {slot("h-7", "min(100%, 36rem)")}
+                {slot("h-11", "11rem", "rounded-full")}
+              </PageSec>
+              <PageSec pad="md" bg="bg-surface-muted">
+                <div className="w-full">
+                  <div className="flex items-center justify-center gap-3 sm:gap-5">
+                    <span aria-hidden className="h-px max-w-20 flex-1 bg-border" />
+                    {slot("h-5 sm:h-6 md:h-7", "min(60%, 18rem)")}
+                    <span aria-hidden className="h-px max-w-20 flex-1 bg-border" />
+                  </div>
+                  <div className="mx-auto mt-5 grid max-w-3xl grid-cols-4 gap-2 sm:mt-7 sm:gap-3 md:gap-5">
+                    {[0, 1, 2, 3].map((i) => <div key={i}>{slot("h-[80px] sm:h-[84px] md:h-[92px]", "100%", "rounded-2xl")}</div>)}
+                  </div>
+                </div>
+              </PageSec>
+              <PageSec pad="lg">
+                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 20rem)")}
+                {slot("h-7", "min(100%, 28rem)")}
+                <div className="mt-2 flex w-full flex-col gap-6">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="grid w-full justify-items-center rounded-[28px] border border-border p-5 sm:p-8">
+                      <Skeleton variant="circle" size={40} />
+                      {slot("mt-3 h-7 sm:h-8", "7rem")}
+                      {slot("mt-3 h-7", "min(100%, 13rem)")}
+                      {slot("h-6", "min(100%, 15rem)")}
+                    </div>
+                  ))}
+                </div>
+              </PageSec>
+              <PageSec pad="lg" bg="bg-surface-muted">
+                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "10rem")}
+                {slot("h-7", "min(100%, 28rem)")}
+                <div className="w-full">{slot("h-[320px]", "100%", "rounded-3xl")}</div>
+              </PageSec>
+              <PageSec pad="lg" bg="bg-surface-muted">
+                {slot("h-[30px]", "8rem", "rounded-full")}
+                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 18rem)")}
+                <div className="relative mt-4 flex w-full flex-col gap-5 border-l border-dashed border-border pl-6 sm:pl-10 md:gap-6">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="relative grid w-full gap-1 rounded-3xl border border-border bg-surface p-5 text-left">
+                      <span className="absolute -left-[2.25rem] top-6 h-5 w-5 rounded-full bg-border ring-4 ring-surface-muted sm:-left-[3.25rem]" />
+                      {slot("h-[22px]", "5rem", "rounded-full")}
+                      {slot("mt-1 h-7", "min(100%, 12rem)")}
+                      {slot("mt-1 h-6", "min(100%, 22rem)")}
+                    </div>
+                  ))}
+                </div>
+              </PageSec>
+              <PageSec pad="lg" wide>
+                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 14rem)")}
+                {slot("h-7", "min(100%, 26rem)")}
+                <div className="grid w-full grid-cols-2 gap-4 md:grid-cols-3">
+                  {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="aspect-square">{slot("h-full", "100%", "rounded-xl")}</div>)}
+                </div>
+              </PageSec>
+              <PageSec pad="lg" bg="bg-surface-muted">
+                <div className="w-full max-w-2xl text-left">
+                  <div className="rounded-[28px] border border-border bg-surface p-4 sm:p-10">
+                    <div className="px-1 py-1 sm:px-3">
+                      <div className="mb-9 grid justify-items-center">
+                        {slot("h-9 md:h-10", "min(100%, 16rem)")}
+                        {slot("mt-3 h-6", "min(100%, 24rem)")}
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-7">
+                        {[0, 1].map((i) => (
+                          <div key={i} className="col-span-2 grid gap-2">
+                            {slot("h-4", "6rem")}
+                            {slot("h-12", "100%", "rounded-xl")}
+                          </div>
+                        ))}
+                        <div className="col-span-2 grid gap-3">
+                          {slot("h-4", "9rem")}
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {[0, 1].map((i) => <div key={i}>{slot("h-[76px]", "100%", "rounded-2xl")}</div>)}
+                          </div>
+                        </div>
+                        <div className="col-span-2 grid gap-2">
+                          {slot("h-4", "7rem")}
+                          {slot("h-[100px]", "100%", "rounded-xl")}
+                        </div>
+                        <div className="col-span-2">{slot("h-12", "100%", "rounded-full")}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </PageSec>
+              <PageSec card pad="md" bg="bg-surface-muted">
+                {slot("h-[25px]", "min(100%, 12rem)")}
+                {slot("h-6", "min(100%, 22rem)")}
+              </PageSec>
+            </main>
           </div>
         </div>
-        <div className="hidden w-[176px] shrink-0 border-l border-border bg-surface p-3 lg:grid lg:content-start lg:gap-3">
-          {bar(34, 140, "rounded-full")}
-          {[0, 1, 2, 3, 4].map((i) => <div key={i}>{bar(48, "100%", "rounded-xl")}</div>)}
-        </div>
-        <div className="hidden w-[84px] shrink-0 border-l border-border bg-surface p-2 lg:grid lg:content-start lg:gap-2">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <div key={i} className="flex justify-center">{bar(58, 64, "rounded-xl")}</div>)}
-        </div>
+        {/* what is in the selected section: the Save button and group headings are real, the rows are placeholders */}
+        <aside className="max-h-56 w-full shrink-0 overflow-hidden border-t border-border bg-surface lg:max-h-none lg:w-[clamp(176px,14vw,300px)] lg:border-l lg:border-t-0">
+          <div className="flex h-14 w-full shrink-0 items-center gap-2 border-b border-border bg-surface px-3 lg:h-[65px]">
+            <Button shape="pill" color="emerald" icon="check" disabled className="min-w-0 flex-1 font-semibold">All saved</Button>
+          </div>
+          <div className="p-3">
+            <span className="mb-2 inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-ink px-3.5 py-1 text-sm font-bold text-white shadow-sm">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
+              <span className="truncate">Content</span>
+            </span>
+            <div className="grid gap-2 lg:gap-3">
+              {[
+                { label: "Components", GroupIcon: Layers, rows: 6, grip: true },
+                { label: "Stickers", GroupIcon: Sparkles, rows: 3, grip: false },
+              ].map(({ label, GroupIcon, rows, grip }) => (
+                <div key={label} className="grid gap-1">
+                  <p className="flex w-full items-center gap-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-soft">
+                    <GroupIcon size={13} />
+                    <span className="flex-1">{label}</span>
+                    {slot("h-[14px]", "1.25rem", "rounded")}
+                  </p>
+                  {Array.from({ length: rows }, (_, i) => (
+                    <div key={i} className="flex items-center gap-2.5 rounded-xl border border-transparent px-2 py-2">
+                      {grip && <span className="px-1 text-soft"><GripVertical size={18} /></span>}
+                      <div className="grid min-w-0 flex-1 gap-0.5">
+                        {slot("h-[14px]", "3.5rem", "rounded")}
+                        {slot("h-4", "min(100%, 7rem)")}
+                      </div>
+                      <span className="h-9 w-9 shrink-0 lg:h-7 lg:w-7" />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+        {/* the toolbox: its icons and labels are real */}
+        <aside className="max-h-24 w-full shrink-0 overflow-hidden border-t border-border bg-surface lg:flex lg:max-h-none lg:w-[84px] lg:flex-col lg:border-l lg:border-t-0">
+          <div className="hidden h-[65px] shrink-0 flex-col items-center justify-center gap-1.5 border-b border-border bg-gradient-to-b from-surface-muted to-surface px-2 lg:flex">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-fg text-surface shadow-sm"><Wrench size={12} /></span>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg">Toolbox</p>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto p-2 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden lg:py-3">
+            {GROUPS.map((g, i) => (
+              <Fragment key={g.title}>
+                {i > 0 && <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-border lg:mx-0 lg:my-1 lg:h-px lg:w-6" />}
+                {g.types.map((t) => {
+                  const { Icon: Tool, label } = elementMeta(t);
+                  return <Tile key={t} label={label} icon={<Tool size={19} strokeWidth={1.75} />} />;
+                })}
+              </Fragment>
+            ))}
+            <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-border lg:mx-0 lg:my-1 lg:h-px lg:w-6" />
+            <Tile label="Text stickers" icon={<Sparkles size={19} strokeWidth={1.75} />} />
+            <Tile label="New section" icon={<Plus size={19} strokeWidth={1.75} />} />
+            <Tile label="New map" icon={<MapPin size={19} strokeWidth={1.75} />} />
+          </div>
+        </aside>
       </div>
     </div>
+  );
+}
+
+/** A toolbox button as the editor draws it (icon over label), not clickable. */
+function Tile({ label, icon }: { label: string; icon: ReactNode }) {
+  return (
+    <span className="flex min-h-[3.6rem] w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-surface-muted px-1 py-2 text-soft">
+      {icon}
+      <span className="text-center text-[10px] font-medium leading-tight">{label}</span>
+    </span>
   );
 }
 
