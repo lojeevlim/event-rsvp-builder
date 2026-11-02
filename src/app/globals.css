@@ -237,6 +237,10 @@ h1, h2, h3, .font-display {
 @keyframes d-tada { 0%, 50%, 100% { transform: scale(1) rotate(var(--r)); } 10%, 20% { transform: scale(0.9) rotate(calc(var(--r) - 4deg)); } 30%, 50% { transform: scale(1.15) rotate(calc(var(--r) + 4deg)); } 40% { transform: scale(1.15) rotate(calc(var(--r) - 4deg)); } }
 @media (prefers-reduced-motion: reduce) { .fx-bounce > span, .fx-swing > span, .fx-shake > span, .fx-tada > span { animation: none; } }
 
+/* ---- wing flap (bee, butterfly) ---- */
+.art-flap { animation: art-flap 0.35s ease-in-out infinite alternate; }
+@keyframes art-flap { from { transform: scaleX(1); } to { transform: scaleX(0.55); } }
+
 /* ---- racing illustrations ---- */
 .art-spin-fast { animation: art-spin 0.5s linear infinite; }
 .art-speed { animation: art-speed 0.9s linear infinite; }
@@ -296,3 +300,11 @@ h1, h2, h3, .font-display {
    rises = tail below). A sticky element holds still on screen, so relative to the content it moves the other way: flip the trail. */
 .fx-invert .lojee-anim-particles[data-dir="down"] { --s: -1; }
 .fx-invert .lojee-anim-particles[data-dir="up"] { --s: 1; }
+
+/* countdown that has reached zero and shows its message: the countdown takes over the whole section (it keeps the section's old height itself), so its effect covers all of it */
+section:has([data-cd-msg]) { padding-block: 0 !important; }
+section:has([data-cd-msg]) > div { max-width: none !important; gap: 0 !important; }
+
+/* a countdown showing its message fills the whole section, which already has its own blue frame: no second outline or pulse ring on the block, so nothing spills past the section edge */
+.editing [data-block]:has([data-cd-msg]).is-selected { outline: none; animation: none; }
+.editing [data-block]:has([data-cd-msg]):hover:not(.is-selected) { outline-offset: -3px; }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { deleteEvent, getEventSettings, setEventNotifyHost, setEventPublished } from "@/lib/data";
 import { eventGuard, readJson, refreshEventPage } from "@/lib/api";
 import { imageUrls } from "@/lib/settings-shared";
-import { deleteImage } from "@/lib/storage";
+import { deleteImage, imageKey } from "@/lib/storage";
 
 export async function PATCH(req: Request, ctx: RouteContext<"/api/events/[id]">) {
   const g = await eventGuard((await ctx.params).id);
@@ -23,6 +23,6 @@ export async function DELETE(_req: Request, ctx: RouteContext<"/api/events/[id]"
   const settings = await getEventSettings(g.event.id);
   await deleteEvent(g.event.id);
   refreshEventPage(g.event.slug);
-  if (settings) for (const url of imageUrls(settings)) await deleteImage(url.split("/").pop() ?? "");
+  if (settings) for (const url of imageUrls(settings)) await deleteImage(imageKey(url));
   return Response.json({ ok: true });
 }

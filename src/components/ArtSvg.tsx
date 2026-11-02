@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { ART_CATEGORIES, ART_MORE } from "@/components/ArtMore";
 
 /** Animated SVG illustrations for stickers. Colours follow the site accent; animation classes live in globals.css. */
 const dl = (s: number): CSSProperties => ({ animationDelay: `${s}s` });
@@ -39,7 +40,7 @@ const RAIN: [number, number, number, string, "c" | "r" | "l", number, number][] 
 
 type Art = { label: string; svg: ReactNode };
 
-const ART: Record<string, Art> = {
+const BASE: Record<string, Art> = {
   /* ---------- featured ---------- */
   cake: {
     label: "Cake",
@@ -738,10 +739,20 @@ const ART: Record<string, Art> = {
   },
 };
 
+const ART: Record<string, Art> = { ...BASE, ...ART_MORE };
+
 export const ART_OPTIONS = Object.entries(ART).map(([k, v]) => [k, v.label] as const);
 
-/** shown up front in the picker; everything else sits behind "More" */
-export const ART_FEATURED = ["cake", "balloons", "gift", "popper", "confetti-rain", "streamers", "banner", "star", "tree", "fireworks", "champagne", "heart"];
+/** picker groups: [category, [key, label][]]; anything not listed in a category lands in "More" */
+export const ART_GROUPS: [string, (readonly [string, string])[]][] = (() => {
+  const seen = new Set<string>();
+  const groups = ART_CATEGORIES.map(([title, keys]) => {
+    const items = keys.filter((k) => ART[k]).map((k) => (seen.add(k), [k, ART[k].label] as const));
+    return [title, items] as [string, (readonly [string, string])[]];
+  });
+  const rest = ART_OPTIONS.filter(([k]) => !seen.has(k));
+  return rest.length ? [...groups, ["More", rest]] : groups;
+})();
 
 export default function ArtSvg({ name }: { name: string }) {
   const art = ART[name] ?? ART.cake;

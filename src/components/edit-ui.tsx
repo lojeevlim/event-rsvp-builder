@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ArrowDown, ArrowUp, EyeOff, FlipHorizontal2, GripVertical, ImagePlus, MoreHorizontal, PartyPopper, Plus, Type, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Badge, Button, DropdownMenu, DropdownMenuItem, Popover, Tooltip } from "@/components/ui";
-import ArtSvg, { ART_FEATURED, ART_OPTIONS } from "@/components/ArtSvg";
+import ArtSvg, { ART_GROUPS } from "@/components/ArtSvg";
 import { elementMeta, GROUPS, TEXT_PRESETS, type ElementType } from "@/components/palette";
 import type { Block, BlockType, Decoration, Section } from "@/lib/settings-shared";
 
@@ -39,9 +39,6 @@ export const drag: { current: Payload | null } = { current: null };
 
 /** Popover content: animated illustrations to drop into a section (click to add, or drag onto the page). */
 export function ArtPicker({ onPick, onUpload, sticker, adjust }: { onPick: (key: string) => void; onUpload?: (files: FileList | null) => void; sticker?: StickerState | null; adjust?: (op: StickerOp) => void }) {
-  const [more, setMore] = useState(false);
-  const featured = ART_OPTIONS.filter(([k]) => ART_FEATURED.includes(k));
-  const extra = ART_OPTIONS.filter(([k]) => !ART_FEATURED.includes(k));
   const tile = ([key, label]: readonly [string, string]) => (
     <button
       key={key}
@@ -92,6 +89,15 @@ export function ArtPicker({ onPick, onUpload, sticker, adjust }: { onPick: (key:
           <p className="text-[11px] text-soft">Rotation {Math.round(sticker.rotate)}° · Size {sticker.size}</p>
         </div>
       )}
+      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-soft">Animated illustrations</p>
+      <div className="grid max-h-72 gap-3 overflow-auto pr-1">
+        {ART_GROUPS.map(([title, items]) => (
+          <div key={title} className="grid gap-1.5">
+            <p className="text-xs font-semibold text-fg">{title}</p>
+            <div className="grid grid-cols-4 gap-1.5">{items.map(tile)}</div>
+          </div>
+        ))}
+      </div>
       {onUpload && (
         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-500">
           <ImagePlus size={16} />
@@ -107,12 +113,6 @@ export function ArtPicker({ onPick, onUpload, sticker, adjust }: { onPick: (key:
           />
         </label>
       )}
-      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-soft">Animated illustrations</p>
-      <div className="grid grid-cols-4 gap-1.5">{featured.map(tile)}</div>
-      {more && <div className="grid max-h-48 grid-cols-4 gap-1.5 overflow-auto">{extra.map(tile)}</div>}
-      <button type="button" onClick={() => setMore((m) => !m)} className="justify-self-start text-xs font-medium text-soft hover:text-fg">
-        {more ? "Show fewer" : `More (+${extra.length})`}
-      </button>
     </div>
   );
 }
@@ -299,7 +299,7 @@ export function EditSection({
       layout="position"
       transition={{ type: "spring", stiffness: 380, damping: 36 }}
       data-section={section.id}
-      className={`group/s decor-host relative ${selected ? "is-selected" : ""} ${section.card ? "mx-auto my-8 w-[calc(100%-1.5rem)] max-w-7xl rounded-[64px] border border-border shadow-[0_10px_28px_-18px_rgba(0,0,0,0.25)]" : ""} ${section.hidden ? "opacity-50" : ""}`}
+      className={`group/s decor-host relative hover:z-40 ${selected ? "is-selected z-40" : ""} ${section.card ? "mx-auto my-8 w-[calc(100%-1.5rem)] max-w-7xl rounded-[64px] border border-border shadow-[0_10px_28px_-18px_rgba(0,0,0,0.25)]" : ""} ${section.hidden ? "opacity-50" : ""}`}
       onDragOver={(e) => {
         const p = drag.current;
         if (!p) return;
@@ -331,12 +331,12 @@ export function EditSection({
       {section.blocks.length === 0 && (
         <p className="m-4 rounded-2xl border-2 border-dashed border-brand/40 py-10 text-center text-sm font-bold text-brand">Empty section — drop elements here</p>
       )}
-      {/* section tools: a vertical rail on the left edge. data-action lets clicks through the editor's "click only selects" guard */}
+      {/* section tools: a vertical rail in the gutter outside the left edge. data-action lets clicks through the editor's "click only selects" guard */}
       <div
         data-action
-        className={`pointer-events-none absolute left-2 top-3 z-30 flex items-start gap-1.5 ${selected || menuOpen || artOpen || addOpen || textOpen ? "" : "opacity-0 group-hover/s:opacity-100"}`}
+        className={`pointer-events-none absolute -left-11 top-3 z-30 flex w-9 flex-col items-center gap-1.5 ${selected || menuOpen || artOpen || addOpen || textOpen ? "" : "invisible"}`}
       >
-        <div className={`flex flex-col items-center gap-0.5 rounded-2xl bg-ink p-1 text-white shadow-lg ${selected || menuOpen || artOpen || addOpen || textOpen ? "pointer-events-auto" : "pointer-events-none group-hover/s:pointer-events-auto"}`}>
+        <div className={`flex flex-col items-center gap-0.5 rounded-2xl bg-ink p-1 text-white shadow-lg ${selected || menuOpen || artOpen || addOpen || textOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
         <Popover
           position="right"
           classNames={{ panel: "top-0 translate-y-0" }}
@@ -442,28 +442,27 @@ export function EditSection({
           </Tooltip>
         )}
         </div>
-        {/* section name label */}
-        <span className={`pointer-events-none mt-1 flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold text-white shadow-lg ${selected ? "bg-[#2563eb]" : "bg-ink"}`}>
+        {/* move up / down: second pill under the tools */}
+        <div className={`flex flex-col items-center gap-0.5 rounded-2xl bg-ink p-1 text-white shadow-lg ${selected || menuOpen || artOpen || addOpen || textOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
+          <Tooltip content="Move up" position="right" portal>
+            <button type="button" aria-label="Move section up" disabled={index === 0} onClick={() => actions.moveSectionBy(section.id, -1)} className="flex h-7 w-7 items-center justify-center rounded-xl hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent">
+              <ArrowUp size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Move down" position="right" portal>
+            <button type="button" aria-label="Move section down" disabled={index === count - 1} onClick={() => actions.moveSectionBy(section.id, 1)} className="flex h-7 w-7 items-center justify-center rounded-xl hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent">
+              <ArrowDown size={16} />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
+      {/* section name label: top right, straddling the top edge */}
+      <div className={`pointer-events-none absolute -top-3 right-3 z-50 ${selected || menuOpen || artOpen || addOpen || textOpen ? "" : "opacity-0 group-hover/s:opacity-100"}`}>
+        <span className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold text-white shadow-lg ${selected ? "bg-[#2563eb]" : "bg-ink"}`}>
           {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
           {section.name || "Section"}
           {section.hidden && <span className="ml-1.5 font-normal opacity-70">(hidden)</span>}
         </span>
-      </div>
-      {/* move up / down: a separate control on the right edge */}
-      <div
-        data-action
-        className={`absolute right-2 top-3 z-30 flex flex-col items-center gap-0.5 rounded-2xl bg-ink p-1 text-white shadow-lg ${selected || menuOpen ? "" : "pointer-events-none opacity-0 group-hover/s:pointer-events-auto group-hover/s:opacity-100"}`}
-      >
-        <Tooltip content="Move up" position="left" portal>
-          <button type="button" aria-label="Move section up" disabled={index === 0} onClick={() => actions.moveSectionBy(section.id, -1)} className="flex h-7 w-7 items-center justify-center rounded-xl hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent">
-            <ArrowUp size={16} />
-          </button>
-        </Tooltip>
-        <Tooltip content="Move down" position="left" portal>
-          <button type="button" aria-label="Move section down" disabled={index === count - 1} onClick={() => actions.moveSectionBy(section.id, 1)} className="flex h-7 w-7 items-center justify-center rounded-xl hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent">
-            <ArrowDown size={16} />
-          </button>
-        </Tooltip>
       </div>
       {over === "after" && <i className="drop-line -bottom-1" />}
     </motion.div>

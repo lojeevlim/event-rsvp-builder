@@ -1,7 +1,7 @@
 import { getEventSettings, updateEventSettings } from "@/lib/data";
 import { eventGuard, readJson, refreshEventPage } from "@/lib/api";
 import { imageUrls, settingsSchema } from "@/lib/settings-shared";
-import { deleteImage } from "@/lib/storage";
+import { deleteImage, imageKey } from "@/lib/storage";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/events/[id]/settings">) {
   const g = await eventGuard((await ctx.params).id);
@@ -24,7 +24,7 @@ export async function PUT(req: Request, ctx: RouteContext<"/api/events/[id]/sett
   // delete uploads that are no longer used anywhere on the page
   if (before) {
     const keep = new Set(imageUrls(parsed.data));
-    for (const url of imageUrls(before)) if (!keep.has(url)) await deleteImage(url.split("/").pop() ?? "");
+    for (const url of imageUrls(before)) if (!keep.has(url)) await deleteImage(imageKey(url));
   }
   return Response.json(parsed.data);
 }

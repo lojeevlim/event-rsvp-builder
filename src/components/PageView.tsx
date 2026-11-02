@@ -100,7 +100,7 @@ function BlockView({ b, edit, rsvpEndpoint }: { b: Block; edit: boolean; rsvpEnd
         </Card>
       );
     case "countdown":
-      return <Countdown target={b.text2} label={b.text} light={b.tone === "white"} />;
+      return <Countdown target={b.text2} label={b.text} light={b.tone === "white"} endHeading={b.text3} fx={b.fxBg} />;
     case "rsvp":
       return (
         <div id="rsvp" className="w-full max-w-2xl scroll-mt-4 text-left">
@@ -178,7 +178,7 @@ function SectionBody({ sec, edit, rsvpEndpoint }: { sec: Section; edit?: EditPro
 /** The whole public page. `s` must already have {name} applied. In the admin it is rendered with `edit` as a live, drag-and-drop preview. */
 export default function PageView({ s, edit, rsvpEndpoint }: { s: Settings; edit?: EditProps; rsvpEndpoint?: string }) {
   return (
-    <main className="flow-root">
+    <main className={`flow-root ${edit ? "pl-12" : ""}`}>
       {s.sections.map((sec, index) => {
         if (sec.hidden && !edit) return null;
         const body = <SectionBody sec={sec} edit={edit} rsvpEndpoint={rsvpEndpoint} />;
