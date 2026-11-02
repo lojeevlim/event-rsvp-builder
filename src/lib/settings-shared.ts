@@ -9,7 +9,7 @@ export const SHAPES = ["original", "rounded", "circle", "square", "heart", "star
 export const KINDS = ["text", "graffiti", "emoji", "art", "image"] as const;
 export const BLOCK_TYPES = ["badge", "heading", "text", "script", "button", "image", "gallery", "emoji", "card", "step", "countdown", "rsvp", "divider", "spacer", "map"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
-export const SECTION_EFFECTS = ["none", "balloons", "graffiti", "confetti", "hearts", "stars", "snow", "rain", "bubbles", "fireflies"] as const;
+export const SECTION_EFFECTS = ["none", "balloons", "graffiti", "confetti", "hearts", "stars", "snow", "rain", "bubbles", "fireflies", "fireworks"] as const;
 export const EVENT_TYPES = ["general", "birthday", "anniversary", "wedding", "christmas", "new-year", "baby-shower", "graduation", "housewarming", "corporate"] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 export const BGS = ["white", "cream", "brand", "ink", "plain"] as const;
@@ -31,7 +31,7 @@ export type FontStyle = (typeof FONT_STYLES)[number];
 const DEFAULT_THEME = { mode: "light" as const, accent: "#18181b", design: "bento" as const, font: "playful" as FontStyle };
 const text = (max = 200) => z.string().trim().max(max);
 const sizes = z.enum(["sm", "md", "lg", "xl"]);
-const upload = z.string().regex(/^\/api\/img\/[\w.-]+$/);
+const upload = z.string().regex(/^\/api\/img\/([\w-]+\/)?[\w.-]+$/);
 
 /** Every piece of text on the RSVP form that the editor can change: key, editor label, default text, and which form piece it belongs to ("done" = the thank-you message). */
 export const RSVP_FIELDS = [
@@ -97,6 +97,21 @@ export function resolveRsvpParts(stored?: RsvpPart[]): RsvpPart[] {
   return out;
 }
 
+/** Labels for the animated background effects (shared by sections and the countdown) */
+export const EFFECT_LABELS: [(typeof SECTION_EFFECTS)[number], string][] = [
+  ["none", "None"],
+  ["balloons", "Balloons rising"],
+  ["hearts", "Hearts floating up"],
+  ["bubbles", "Bubbles rising"],
+  ["stars", "Twinkling stars"],
+  ["fireflies", "Fireflies"],
+  ["fireworks", "Fireworks"],
+  ["snow", "Snow falling"],
+  ["rain", "Rain"],
+  ["confetti", "Confetti falling"],
+  ["graffiti", "Graffiti falling & fading"],
+];
+
 const block = z
   .object({
     id: text(40),
@@ -109,6 +124,8 @@ const block = z
     size: sizes.default("md"),
     tone: z.enum(["ink", "brand", "soft", "white"]).default("ink"),
     caps: z.boolean().default(false),
+    /** countdown only: background effect that plays once the countdown reaches zero (the heading shown then is `text3`) */
+    fxBg: z.enum(SECTION_EFFECTS).default("none"),
     images: z.array(z.object({ url: upload, alt: text() })).max(MAX_IMAGES).default([]),
     /** RSVP form: text overrides by key (see RSVP_FIELDS); a missing or empty key uses the default */
     labels: z.record(z.string(), text(300)).default({}),
@@ -210,7 +227,7 @@ export function applyName(s: Settings): Settings {
 }
 
 export function newBlock(type: BlockType, id: string): Block {
-  const base: Block = { id, type, text: "", text2: "", text3: "", url: "", icon: "", size: "md", tone: "ink", caps: false, images: [], labels: {}, parts: [] };
+  const base: Block = { id, type, text: "", text2: "", text3: "", url: "", icon: "", size: "md", tone: "ink", caps: false, fxBg: "none", images: [], labels: {}, parts: [] };
   switch (type) {
     case "badge": return { ...base, text: "New badge" };
     case "heading": return { ...base, text: "New heading", size: "lg" };

@@ -9,6 +9,7 @@ import {
   SHAPES,
   KINDS,
   MAX_BLOCKS,
+  EFFECT_LABELS,
   MAX_DECORATIONS,
   MAX_IMAGES,
   MAX_SECTIONS,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import SaveToast from "@/components/SaveToast";
 import PageView from "@/components/PageView";
 import { ICON_OPTIONS } from "@/components/icons";
 import { GROUPS, PALETTE, TEXT_PRESETS } from "@/components/palette";
@@ -51,7 +53,6 @@ import {
   Popover,
   SegmentButton,
   ThemeProvider,
-  Toast,
   Tooltip,
   UserMenu,
 } from "@/components/ui";
@@ -118,6 +119,8 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  /** an element holding an uploaded picture that is about to be removed, waiting for the host to confirm */
+  const [confirmImage, setConfirmImage] = useState<{ kind: "block" | "sticker"; id: string } | null>(null);
   const [leftOpen, setLeftOpen] = useState(false);
   // "Content" list: a collapsible bar under the preview on phones, always open in the desktop sidebar
   const [addedOpen, setAddedOpen] = useState(false);
@@ -360,7 +363,17 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     if (res.ok) {
       setS(data);
       setSavedJson(JSON.stringify(data));
-      setMsg({ ok: true, text: "Saved — the event page is updated" });
+      setMsg({ ok: true, text: "The event page is updated." });
+      // saved: let go of whatever was selected and close the floating settings panels
+      setSel({ section: null, block: null });
+      setSelDecor(null);
+      setSelKind(null);
+      setLeftOpen(false);
+      setElementPanel(false);
+      setStickerPanel(false);
+      setStickersPanel(false);
+      setRsvpPartKey(null);
+      setFresh(null);
     } else {
       setMsg({ ok: false, text: data?.error ?? "Could not save." });
     }
@@ -485,11 +498,25 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     }
   }
 
+  /** removing something that holds an uploaded picture asks first; the file leaves storage when the design is saved */
+  function removeBlockAsk(id: string) {
+    const b = s.sections.flatMap((x) => x.blocks).find((x) => x.id === id);
+    const hasUpload = !!b && (b.images.length > 0 || ((b.type === "image" || b.type === "map") && b.url.startsWith("/api/img/")));
+    if (hasUpload) setConfirmImage({ kind: "block", id });
+    else actions.removeBlock(id);
+  }
+  function removeStickerNow(id: string) {
+    setS((prev) => ({ ...prev, decorations: prev.decorations.filter((d) => d.id !== id) }));
+    setSelDecor((cur) => (cur === id ? null : cur));
+  }
+  function removeStickerAsk(id: string) {
+    if (s.decorations.find((d) => d.id === id)?.kind === "image") setConfirmImage({ kind: "sticker", id });
+    else removeStickerNow(id);
+  }
+
   function deleteSelection() {
-    if (selKind === "sticker" && curDecor) {
-      setS((prev) => ({ ...prev, decorations: prev.decorations.filter((d) => d.id !== curDecor.id) }));
-      setSelDecor(null);
-    } else if (selKind === "block" && curBlock) actions.removeBlock(curBlock.id);
+    if (selKind === "sticker" && curDecor) removeStickerAsk(curDecor.id);
+    else if (selKind === "block" && curBlock) removeBlockAsk(curBlock.id);
     else if (selKind === "section" && curSection) setConfirmDelete(curSection.id);
   }
 
@@ -584,10 +611,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         setLeftOpen(true);
       }}
       onChange={(did, patch) => setS((prev) => ({ ...prev, decorations: prev.decorations.map((d) => (d.id === did ? { ...d, ...patch } : d)) }))}
-      onRemove={(did) => {
-        setS((prev) => ({ ...prev, decorations: prev.decorations.filter((d) => d.id !== did) }));
-        setSelDecor(null);
-      }}
+      onRemove={removeStickerAsk}
       onMove={(did, x, y) => setS((prev) => ({ ...prev, decorations: prev.decorations.map((d) => (d.id === did ? { ...d, x, y } : d)) }))}
       draggingRef={dragging}
     />
@@ -709,7 +733,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
   );
 
   // Event & theme, Preview and Save: in the header, or (phones, edit view) floating above the "Content" bar
-  const actionButtons = (parts: ("theme" | "view" | "save")[], compact = false, slot = "header") => (
+  const actionButtons = (parts: ("theme" | "view")[], compact = false, slot = "header") => (
     <>
       {parts.includes("theme") && view === "edit" && (
         <Popover
@@ -739,13 +763,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
       {parts.includes("view") && <Tooltip content="Preview — the page as visitors will see it, including unsaved changes" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
         <Button size="sm" shape="pill" icon="eye" aria-label="Preview" className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`} onClick={() => setPreviewing(true)}><span className={compact ? "hidden" : ""}>Preview</span></Button>
       </Tooltip>}
-      {parts.includes("save") && view === "edit" && (
-        <Tooltip content="Save changes — publish to the live site" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
-          <Button size="sm" icon="save" aria-label="Save changes" shape="pill" className={compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"} animation={dirty ? "particles" : undefined} loading={saving} disabled={saving || !dirty} onClick={save}>
-            <span className={compact ? "hidden" : ""}>Save changes</span>
-          </Button>
-        </Tooltip>
-      )}
     </>
   );
 
@@ -760,12 +777,12 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
             href={`/dashboard/events/${eventId}`}
             title="Back to the event"
             aria-label={`Back to ${eventTitle}`}
-            className="group mr-1 flex min-w-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3.5 text-xs font-semibold shadow-sm transition-colors hover:border-accent-500 hover:bg-surface-muted sm:mr-3 sm:text-sm"
+            className="group mr-1 flex min-w-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-1 text-xs font-semibold shadow-sm transition-colors hover:border-accent-500 hover:bg-surface-muted sm:mr-3 sm:pr-3.5 sm:text-sm"
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-600 text-white transition-transform group-hover:-translate-x-0.5">
               <ArrowLeft size={15} strokeWidth={2.25} />
             </span>
-            <span className="max-w-[8rem] truncate sm:max-w-[16rem]">{eventTitle}</span>
+            <span className="max-w-[16rem] truncate max-sm:hidden">{eventTitle}</span>
             <span className="font-normal text-soft max-sm:hidden">· Design</span>
           </Link>
           <ButtonGroup shape="pill">
@@ -790,7 +807,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
           {/* own row below lg: Event & theme and Preview on the left, Save on the right */}
           <div className={`flex w-full items-center justify-between gap-2 ${view === "edit" ? "lg:hidden" : ""}`}>
             <div className="flex flex-wrap items-center gap-2">{actionButtons(["theme", "view"])}</div>
-            <div className="flex items-center">{actionButtons(["save"])}</div>
           </div>
         </header>
 
@@ -868,7 +884,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                 {/* large screens: an oval bar of page actions above the page */}
                 <div data-action className="fx-invert sticky top-0 z-30 mb-3 mx-auto hidden max-w-[1100px] justify-between lg:flex">
                   <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["theme", "view"], false, "bar")}</div>
-                  <div className="flex items-center rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["save"])}</div>
                 </div>
                 {/* only this preview takes the site theme — the admin UI itself stays as it is */}
                 <ThemeProvider isolated mode={s.theme.mode} accent={s.theme.accent} design={s.theme.design}>
@@ -879,22 +894,14 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
               </div>
 
             {/* always-visible list of everything added to the selected section */}
-            <aside className="max-h-56 w-full shrink-0 overflow-y-auto overscroll-contain border-t border-border bg-surface lg:max-h-none lg:w-[176px] lg:border-l lg:border-t-0">
-              <button
-                type="button"
-                aria-expanded={addedOpen}
-                onClick={() => setAddedOpen((o) => !o)}
-                className={`sticky top-0 z-10 flex h-11 w-full shrink-0 items-center gap-3 bg-surface/95 px-3 text-left backdrop-blur lg:h-[65px] lg:cursor-default ${addedOpen ? "border-b border-border" : "max-lg:border-b-0"} lg:border-b lg:border-border`}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2 lg:justify-center">
-                  <span className="inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-[#2563eb] px-3.5 py-1 text-sm font-bold text-white shadow-sm">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
-                    <span className="truncate">{layerSection ? `${layerSection.name || "Untitled"} section` : "—"}</span>
-                  </span>
-                </div>
-                {layerSection && <Badge variant="soft" size="xs" color="blue" className="lg:hidden">{layerSection.blocks.length + s.decorations.filter((d) => d.section === layerSection.id).length}</Badge>}
-                <ChevronDown size={16} className={`shrink-0 text-soft transition-transform lg:hidden ${addedOpen ? "" : "-rotate-90"}`} aria-hidden />
-              </button>
+            <aside className="max-h-56 w-full shrink-0 overflow-y-auto overscroll-contain border-t border-border bg-surface lg:max-h-none lg:w-[clamp(176px,14vw,300px)] lg:border-l lg:border-t-0">
+              <div className={`sticky top-0 z-10 flex h-14 w-full shrink-0 items-center gap-2 bg-surface/95 px-3 backdrop-blur lg:h-[65px] ${addedOpen ? "border-b border-border" : "max-lg:border-b-0"} lg:border-b lg:border-border`}>
+                {view === "edit" ? <SaveButton dirty={dirty} saving={saving} onClick={save} /> : <div className="flex-1" />}
+                <button type="button" aria-expanded={addedOpen} aria-label="Show or hide what is in this section" onClick={() => setAddedOpen((o) => !o)} className="flex shrink-0 items-center gap-2 rounded-full p-1 lg:hidden">
+                  {layerSection && <Badge variant="soft" size="xs" color="blue">{layerSection.blocks.length + s.decorations.filter((d) => d.section === layerSection.id).length}</Badge>}
+                  <ChevronDown size={16} className={`shrink-0 text-soft transition-transform ${addedOpen ? "" : "-rotate-90"}`} aria-hidden />
+                </button>
+              </div>
               <div className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${addedOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr] lg:grid-rows-[1fr]"}`}>
               <div className={`min-h-0 overflow-hidden transition-[visibility] duration-300 ${addedOpen ? "" : "max-lg:invisible"}`}>
               <div className="p-3">
@@ -922,11 +929,8 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                 setStickerPanel(true);
                 previewRef.current?.querySelector(`[data-decor="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
               }}
-              onDeleteBlock={(id) => actions.removeBlock(id)}
-              onDeleteSticker={(id) => {
-                setS((prev) => ({ ...prev, decorations: prev.decorations.filter((d) => d.id !== id) }));
-                if (selDecor === id) setSelDecor(null);
-              }}
+              onDeleteBlock={removeBlockAsk}
+              onDeleteSticker={removeStickerAsk}
             />
               ) : (
                 <p className="text-xs text-soft">Select a section to see its elements.</p>
@@ -1036,20 +1040,12 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         <AnimatePresence>
         {elementPanel && curBlock && !previewing && (
           <FloatingPanel key="element" panelId="element" title={`Element: ${PALETTE.find((p) => p.type === curBlock.type)?.label ?? curBlock.type}`} onClose={() => closeElementPanel(true)} onDone={() => closeElementPanel(false)} closeHint={justAddedBlock && untouched(curBlock) ? "Cancel — removes the element you just added" : "Close"}>
-            <BlockEditor b={curBlock} set={(p) => updateBlock(curBlock.id, p)} remove={() => actions.removeBlock(curBlock.id)} setMsg={setMsg} onEditPart={(k) => { setRsvpPartKey(k); }} />
+            <BlockEditor b={curBlock} set={(p) => updateBlock(curBlock.id, p)} remove={() => removeBlockAsk(curBlock.id)} setMsg={setMsg} onEditPart={(k) => { setRsvpPartKey(k); }} />
           </FloatingPanel>
         )}
         </AnimatePresence>
 
-        <Toast
-          open={!!msg}
-          onClose={() => setMsg(null)}
-          variant={msg?.ok ? "success" : "error"}
-          position="bottom-center"
-          duration={3500}
-        >
-          {msg?.text}
-        </Toast>
+        <SaveToast msg={msg} onClose={() => setMsg(null)} />
 
         <AlertDialog
           open={helpOpen}
@@ -1080,6 +1076,19 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
           }}
         />
         <AlertDialog
+          open={!!confirmImage}
+          onClose={() => setConfirmImage(null)}
+          variant="destructive"
+          title="Remove this image?"
+          description="The picture is taken off your design, and the file is deleted from storage when you save. Reload before saving to get it back."
+          confirmLabel="Remove image"
+          onConfirm={() => {
+            if (confirmImage?.kind === "block") actions.removeBlock(confirmImage.id);
+            else if (confirmImage) removeStickerNow(confirmImage.id);
+            setConfirmImage(null);
+          }}
+        />
+        <AlertDialog
           open={!!confirmSection}
           onClose={() => setConfirmDelete(null)}
           variant="destructive"
@@ -1104,6 +1113,25 @@ const FONT_OPTIONS = [
   ["elegant", "Elegant — Lora & Playfair Display"],
   ["bold", "Bold — DM Sans & Space Grotesk"],
 ] as const;
+
+/** The page's one Save button (the library Button): green and wiggling while there is something to save, a calm "All saved" otherwise. */
+function SaveButton({ dirty, saving, onClick }: { dirty: boolean; saving: boolean; onClick: () => void }) {
+  return (
+    <Button
+      aria-label="Save changes"
+      shape="pill"
+      color="emerald"
+      icon={dirty ? "save" : "check"}
+      animation={dirty && !saving ? "wiggle" : undefined}
+      loading={saving}
+      disabled={!dirty || saving}
+      onClick={onClick}
+      className="min-w-0 flex-1 font-semibold"
+    >
+      {saving ? "Saving…" : dirty ? "Save changes" : "All saved"}
+    </Button>
+  );
+}
 
 function ThemeTool({ s, setS, onPickType }: { s: Settings; setS: React.Dispatch<React.SetStateAction<Settings>>; onPickType: (t: EventType) => void }) {
   const set = (p: Partial<Settings["theme"]>) => setS((prev) => ({ ...prev, theme: { ...prev.theme, ...p } }));
@@ -1166,18 +1194,7 @@ function SectionEditor({ sec, set, remove }: { sec: Section; set: (p: Partial<Se
         <SelectField
           label="Effect"
           value={sec.effect}
-          options={[
-            ["none", "None"],
-            ["balloons", "Balloons rising"],
-            ["hearts", "Hearts floating up"],
-            ["bubbles", "Bubbles rising"],
-            ["stars", "Twinkling stars"],
-            ["fireflies", "Fireflies"],
-            ["snow", "Snow falling"],
-            ["rain", "Rain"],
-            ["confetti", "Confetti falling"],
-            ["graffiti", "Graffiti falling & fading"],
-          ]}
+          options={EFFECT_LABELS}
           onChange={(effect) => set({ effect })}
         />
         <div className="grid gap-3 rounded-xl border border-border p-3">
@@ -1344,6 +1361,10 @@ function BlockEditor({ b, set, remove, setMsg, onEditPart }: { b: Block; set: (p
               options={[["white", "Contrast (follows the background)"], ["ink", "Default"]]}
               onChange={(tone) => set({ tone })}
             />
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-soft">When it reaches zero</p>
+            {t("text3", "Message")}
+            <SelectField label="Background effect" value={b.fxBg} options={EFFECT_LABELS} onChange={(fxBg) => set({ fxBg })} />
+            <p className="text-xs text-soft">Plays once every number is 0. The message replaces the number tiles as a heading; leave it empty to keep the tiles. To preview it, set the date above to a time that has already passed.</p>
           </>
         )}
         {b.type === "rsvp" && (

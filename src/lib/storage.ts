@@ -13,12 +13,21 @@ export const r2Enabled = () => !!r2Config();
 function r2Fetch(name: string, init: RequestInit) {
   const c = r2Config()!;
   const client = new AwsClient({ accessKeyId: c.key, secretAccessKey: c.secret, service: "s3", region: "auto" });
-  return client.fetch(`https://${c.account}.r2.cloudflarestorage.com/${c.bucket}/${encodeURIComponent(name)}`, init);
+  return client.fetch(`https://${c.account}.r2.cloudflarestorage.com/${c.bucket}/${name.split("/").map(encodeURIComponent).join("/")}`, init);
+}
+
+/** The storage key for an uploaded picture's address, e.g. "/api/img/jane-doe-1a2b3c4d/x.png" gives "jane-doe-1a2b3c4d/x.png". */
+export const imageKey = (url: string) => url.replace(/^\/api\/img\//, "");
+
+/** Each user's pictures live in their own folder: their name plus a short id so two people with the same name never share one. */
+export function userFolder(user: { id: string; name: string; email: string }) {
+  const base = (user.name || user.email.split("@")[0]).toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return `${base || "user"}-${user.id.replace(/[^a-z0-9]/gi, "").slice(0, 8)}`;
 }
 
 export async function putImage(name: string, data: Buffer, type: string) {
   if (!r2Enabled()) {
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
+    await fs.mkdir(path.dirname(path.join(UPLOAD_DIR, name)), { recursive: true });
     await fs.writeFile(path.join(UPLOAD_DIR, name), data);
     return;
   }

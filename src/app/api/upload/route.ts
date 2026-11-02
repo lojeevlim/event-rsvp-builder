@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { apiUser } from "@/lib/auth";
-import { putImage } from "@/lib/storage";
+import { putImage, userFolder } from "@/lib/storage";
 
 const TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   if (!ext) return Response.json({ error: "Only PNG, JPG, WEBP or GIF images." }, { status: 400 });
   if (file.size > MAX_BYTES) return Response.json({ error: "Image is over 5 MB." }, { status: 400 });
 
-  const name = `${randomUUID()}.${ext}`;
+  const name = `${userFolder(a.user)}/${randomUUID()}.${ext}`;
   try {
     await putImage(name, Buffer.from(await file.arrayBuffer()), file.type);
   } catch (err) {
