@@ -266,7 +266,7 @@ const slot = (cls: string, w: string, round = "rounded-md") => (
 );
 
 /** A section of the page as PageView draws it: same padding, same centred max-w-3xl column (max-w-6xl when wide), same gaps; `card` gives the rounded, bordered card. */
-function PageSec({ pad, bg = "", card = false, wide = false, children }: { pad: "md" | "lg"; bg?: string; card?: boolean; wide?: boolean; children: ReactNode }) {
+function PageSec({ pad, bg = "", card = false, wide = false, live = false, children }: { pad: "md" | "lg"; bg?: string; card?: boolean; wide?: boolean; live?: boolean; children: ReactNode }) {
   const body = (
     <section className={`relative ${bg} ${pad === "lg" ? "py-16 md:py-20" : "py-12 md:py-16"} px-4`}>
       <div className={`mx-auto flex flex-col items-center gap-4 text-center md:gap-5 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
@@ -274,7 +274,112 @@ function PageSec({ pad, bg = "", card = false, wide = false, children }: { pad: 
       </div>
     </section>
   );
-  return card ? <div className="mx-auto my-8 w-[calc(100%-1.5rem)] max-w-7xl overflow-hidden rounded-[64px] border border-border shadow-[0_10px_28px_-18px_rgba(0,0,0,0.25)]">{body}</div> : body;
+  if (!card) return body;
+  // the live page's card is a little tighter and less round on phones than the editor's
+  return <div className={`mx-auto max-w-7xl overflow-hidden border border-border shadow-[0_10px_28px_-18px_rgba(0,0,0,0.25)] ${live ? "my-5 w-[calc(100%-1rem)] rounded-[32px] md:my-8 md:w-[calc(100%-1.5rem)] md:rounded-[64px]" : "my-8 w-[calc(100%-1.5rem)] rounded-[64px]"}`}>{body}</div>;
+}
+
+/** The standard page, section by section (hero, countdown, details, map, agenda, gallery, RSVP, footer) — shared by the editor and the live page skeletons. */
+function PageSections({ live = false }: { live?: boolean }) {
+  return (
+    <>
+    <PageSec live={live} card pad="lg">
+      {slot("h-[34px]", "10rem", "rounded-full")}
+      {slot("h-[38px] sm:h-[50px] md:h-[76px]", "min(100%, 30rem)")}
+      {slot("h-[38px] sm:h-[50px] md:h-[76px]", "min(100%, 22rem)")}
+      {slot("h-8", "16rem")}
+      {slot("h-7", "min(100%, 36rem)")}
+      {slot("h-11", "11rem", "rounded-full")}
+    </PageSec>
+    <PageSec live={live} pad="md" bg="bg-surface-muted">
+      <div className="w-full">
+        <div className="flex items-center justify-center gap-3 sm:gap-5">
+          <span aria-hidden className="h-px max-w-20 flex-1 bg-border" />
+          {slot("h-5 sm:h-6 md:h-7", "min(60%, 18rem)")}
+          <span aria-hidden className="h-px max-w-20 flex-1 bg-border" />
+        </div>
+        <div className="mx-auto mt-5 grid max-w-3xl grid-cols-4 gap-2 sm:mt-7 sm:gap-3 md:gap-5">
+          {[0, 1, 2, 3].map((i) => <div key={i}>{slot("h-[80px] sm:h-[84px] md:h-[92px]", "100%", "rounded-2xl")}</div>)}
+        </div>
+      </div>
+    </PageSec>
+    <PageSec live={live} pad="lg">
+      {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 20rem)")}
+      {slot("h-7", "min(100%, 28rem)")}
+      <div className="mt-2 flex w-full flex-col gap-6">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="grid w-full justify-items-center rounded-[28px] border border-border p-5 sm:p-8">
+            <Skeleton variant="circle" size={40} />
+            {slot("mt-3 h-7 sm:h-8", "7rem")}
+            {slot("mt-3 h-7", "min(100%, 13rem)")}
+            {slot("h-6", "min(100%, 15rem)")}
+          </div>
+        ))}
+      </div>
+    </PageSec>
+    <PageSec live={live} pad="lg" bg="bg-surface-muted">
+      {slot("h-[25px] sm:h-[31px] md:h-[38px]", "10rem")}
+      {slot("h-7", "min(100%, 28rem)")}
+      <div className="w-full">{slot("h-[320px]", "100%", "rounded-3xl")}</div>
+    </PageSec>
+    <PageSec live={live} pad="lg" bg="bg-surface-muted">
+      {slot("h-[30px]", "8rem", "rounded-full")}
+      {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 18rem)")}
+      <div className="relative mt-4 flex w-full flex-col gap-5 border-l border-dashed border-border pl-6 sm:pl-10 md:gap-6">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="relative grid w-full gap-1 rounded-3xl border border-border bg-surface p-5 text-left">
+            <span className="absolute -left-[2.25rem] top-6 h-5 w-5 rounded-full bg-border ring-4 ring-surface-muted sm:-left-[3.25rem]" />
+            {slot("h-[22px]", "5rem", "rounded-full")}
+            {slot("mt-1 h-7", "min(100%, 12rem)")}
+            {slot("mt-1 h-6", "min(100%, 22rem)")}
+          </div>
+        ))}
+      </div>
+    </PageSec>
+    <PageSec live={live} pad="lg" wide>
+      {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 14rem)")}
+      {slot("h-7", "min(100%, 26rem)")}
+      <div className="grid w-full grid-cols-2 gap-4 md:grid-cols-3">
+        {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="aspect-square">{slot("h-full", "100%", "rounded-xl")}</div>)}
+      </div>
+    </PageSec>
+    <PageSec live={live} pad="lg" bg="bg-surface-muted">
+      <div className="w-full max-w-2xl text-left">
+        <div className="rounded-[28px] border border-border bg-surface p-4 sm:p-10">
+          <div className="px-1 py-1 sm:px-3">
+            <div className="mb-9 grid justify-items-center">
+              {slot("h-9 md:h-10", "min(100%, 16rem)")}
+              {slot("mt-3 h-6", "min(100%, 24rem)")}
+            </div>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-7">
+              {[0, 1].map((i) => (
+                <div key={i} className="col-span-2 grid gap-2">
+                  {slot("h-4", "6rem")}
+                  {slot("h-12", "100%", "rounded-xl")}
+                </div>
+              ))}
+              <div className="col-span-2 grid gap-3">
+                {slot("h-4", "9rem")}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[0, 1].map((i) => <div key={i}>{slot("h-[76px]", "100%", "rounded-2xl")}</div>)}
+                </div>
+              </div>
+              <div className="col-span-2 grid gap-2">
+                {slot("h-4", "7rem")}
+                {slot("h-[100px]", "100%", "rounded-xl")}
+              </div>
+              <div className="col-span-2">{slot("h-12", "100%", "rounded-full")}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </PageSec>
+    <PageSec live={live} card pad="md" bg="bg-surface-muted">
+      {slot("h-[25px]", "min(100%, 12rem)")}
+      {slot("h-6", "min(100%, 22rem)")}
+    </PageSec>
+    </>
+  );
 }
 
 /** The editor: the real header labels, buttons, panel headings and tool icons; names, titles and the page itself are placeholders. Mirrors AdminPanel's layout piece for piece. */
@@ -319,101 +424,7 @@ export function EditorSkeleton() {
           {/* the page, in the editor's left gutter: the standard page, section by section, with the real paddings, widths, gaps and element heights */}
           <div className="mx-auto max-w-[1100px] overflow-hidden rounded-2xl bg-surface pt-1 ring-1 ring-border">
             <main className="flow-root pl-12">
-              <PageSec card pad="lg">
-                {slot("h-[34px]", "10rem", "rounded-full")}
-                {slot("h-[38px] sm:h-[50px] md:h-[76px]", "min(100%, 30rem)")}
-                {slot("h-[38px] sm:h-[50px] md:h-[76px]", "min(100%, 22rem)")}
-                {slot("h-8", "16rem")}
-                {slot("h-7", "min(100%, 36rem)")}
-                {slot("h-11", "11rem", "rounded-full")}
-              </PageSec>
-              <PageSec pad="md" bg="bg-surface-muted">
-                <div className="w-full">
-                  <div className="flex items-center justify-center gap-3 sm:gap-5">
-                    <span aria-hidden className="h-px max-w-20 flex-1 bg-border" />
-                    {slot("h-5 sm:h-6 md:h-7", "min(60%, 18rem)")}
-                    <span aria-hidden className="h-px max-w-20 flex-1 bg-border" />
-                  </div>
-                  <div className="mx-auto mt-5 grid max-w-3xl grid-cols-4 gap-2 sm:mt-7 sm:gap-3 md:gap-5">
-                    {[0, 1, 2, 3].map((i) => <div key={i}>{slot("h-[80px] sm:h-[84px] md:h-[92px]", "100%", "rounded-2xl")}</div>)}
-                  </div>
-                </div>
-              </PageSec>
-              <PageSec pad="lg">
-                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 20rem)")}
-                {slot("h-7", "min(100%, 28rem)")}
-                <div className="mt-2 flex w-full flex-col gap-6">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="grid w-full justify-items-center rounded-[28px] border border-border p-5 sm:p-8">
-                      <Skeleton variant="circle" size={40} />
-                      {slot("mt-3 h-7 sm:h-8", "7rem")}
-                      {slot("mt-3 h-7", "min(100%, 13rem)")}
-                      {slot("h-6", "min(100%, 15rem)")}
-                    </div>
-                  ))}
-                </div>
-              </PageSec>
-              <PageSec pad="lg" bg="bg-surface-muted">
-                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "10rem")}
-                {slot("h-7", "min(100%, 28rem)")}
-                <div className="w-full">{slot("h-[320px]", "100%", "rounded-3xl")}</div>
-              </PageSec>
-              <PageSec pad="lg" bg="bg-surface-muted">
-                {slot("h-[30px]", "8rem", "rounded-full")}
-                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 18rem)")}
-                <div className="relative mt-4 flex w-full flex-col gap-5 border-l border-dashed border-border pl-6 sm:pl-10 md:gap-6">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="relative grid w-full gap-1 rounded-3xl border border-border bg-surface p-5 text-left">
-                      <span className="absolute -left-[2.25rem] top-6 h-5 w-5 rounded-full bg-border ring-4 ring-surface-muted sm:-left-[3.25rem]" />
-                      {slot("h-[22px]", "5rem", "rounded-full")}
-                      {slot("mt-1 h-7", "min(100%, 12rem)")}
-                      {slot("mt-1 h-6", "min(100%, 22rem)")}
-                    </div>
-                  ))}
-                </div>
-              </PageSec>
-              <PageSec pad="lg" wide>
-                {slot("h-[25px] sm:h-[31px] md:h-[38px]", "min(100%, 14rem)")}
-                {slot("h-7", "min(100%, 26rem)")}
-                <div className="grid w-full grid-cols-2 gap-4 md:grid-cols-3">
-                  {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="aspect-square">{slot("h-full", "100%", "rounded-xl")}</div>)}
-                </div>
-              </PageSec>
-              <PageSec pad="lg" bg="bg-surface-muted">
-                <div className="w-full max-w-2xl text-left">
-                  <div className="rounded-[28px] border border-border bg-surface p-4 sm:p-10">
-                    <div className="px-1 py-1 sm:px-3">
-                      <div className="mb-9 grid justify-items-center">
-                        {slot("h-9 md:h-10", "min(100%, 16rem)")}
-                        {slot("mt-3 h-6", "min(100%, 24rem)")}
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-5 gap-y-7">
-                        {[0, 1].map((i) => (
-                          <div key={i} className="col-span-2 grid gap-2">
-                            {slot("h-4", "6rem")}
-                            {slot("h-12", "100%", "rounded-xl")}
-                          </div>
-                        ))}
-                        <div className="col-span-2 grid gap-3">
-                          {slot("h-4", "9rem")}
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            {[0, 1].map((i) => <div key={i}>{slot("h-[76px]", "100%", "rounded-2xl")}</div>)}
-                          </div>
-                        </div>
-                        <div className="col-span-2 grid gap-2">
-                          {slot("h-4", "7rem")}
-                          {slot("h-[100px]", "100%", "rounded-xl")}
-                        </div>
-                        <div className="col-span-2">{slot("h-12", "100%", "rounded-full")}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </PageSec>
-              <PageSec card pad="md" bg="bg-surface-muted">
-                {slot("h-[25px]", "min(100%, 12rem)")}
-                {slot("h-6", "min(100%, 22rem)")}
-              </PageSec>
+              <PageSections />
             </main>
           </div>
         </div>
@@ -490,18 +501,11 @@ function Tile({ label, icon }: { label: string; icon: ReactNode }) {
   );
 }
 
-/** A guest's event page: all of it is the host's design, so all of it is a placeholder. */
+/** The live event page: the same sections as the editor's preview (without its left gutter), as PageView lays them out. */
 export function PublicEventSkeleton() {
   return (
-    <div className="mx-auto grid w-full max-w-3xl justify-items-center gap-5 px-4 py-16 text-center" role="status" aria-label="Loading the event">
-      {bar(32, 160, "rounded-full")}
-      {bar(56, "min(34rem, 90%)")}
-      {bar(56, "min(26rem, 70%)")}
-      {bar(24, "min(30rem, 85%)")}
-      {bar(48, 200, "rounded-full")}
-      <div className="mt-8 grid w-full grid-cols-4 gap-2 sm:gap-3">
-        {[0, 1, 2, 3].map((i) => <div key={i}>{bar(88, "100%", "rounded-2xl")}</div>)}
-      </div>
-    </div>
+    <main className="flow-root min-h-screen bg-surface" role="status" aria-label="Loading the event">
+      <PageSections live />
+    </main>
   );
 }
