@@ -3,6 +3,7 @@ import { eventGuard, readJson } from "@/lib/api";
 import { invitesSentToday, listEmailLog } from "@/lib/data";
 import { appOrigin, eventLink } from "@/lib/event-url";
 import { sendEventEmail } from "@/lib/send-event-email";
+import { emailProviderInfo } from "@/lib/mailer";
 
 const PER_REQUEST = 25;
 const PER_DAY = Number(process.env.MAX_INVITES_PER_DAY ?? 200);
@@ -12,7 +13,8 @@ const body = z.object({ emails: z.array(z.email().max(120)).min(1).max(PER_REQUE
 export async function GET(_req: Request, ctx: RouteContext<"/api/events/[id]/invitations">) {
   const g = await eventGuard((await ctx.params).id);
   if ("response" in g) return g.response;
-  return Response.json({ log: await listEmailLog(g.event.id), sentToday: await invitesSentToday(g.event.id), perDay: PER_DAY });
+  const info = emailProviderInfo();
+  return Response.json({ log: await listEmailLog(g.event.id), sentToday: await invitesSentToday(g.event.id), perDay: PER_DAY, provider: info.label, providerWarning: info.warning ?? null });
 }
 
 /** Emails the event's public link to the people the host lists. Capped per request and per day so it cannot be used to spam. */

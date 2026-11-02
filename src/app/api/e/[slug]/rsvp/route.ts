@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRsvp, emailExists, markCardSent } from "@/lib/data";
 import { getCachedPublicEvent } from "@/lib/public-event";
 import { appOrigin, eventLink } from "@/lib/event-url";
+import { notifyHostOfRsvp } from "@/lib/notify-host";
 import { sendEventEmail } from "@/lib/send-event-email";
 
 const schema = z.object({
@@ -28,12 +29,17 @@ export async function POST(req: Request, ctx: RouteContext<"/api/e/[slug]/rsvp">
     if (await emailExists(found.event.id, data.email)) return Response.json({ error: "This email has already RSVP'd." }, { status: 409 });
     const row = await createRsvp(found.event.id, data);
     if (!row) return Response.json({ error: "This email has already RSVP'd." }, { status: 409 });
+    let emailSent = true;
+    const origin = await appOrigin();
+    await notifyHostOfRsvp({ event: found.event, hostEmail: found.hostEmail, ...data, link: `${origin}/dashboard/events/${found.event.id}` });
     if (data.attending) {
-      const link = eventLink(await appOrigin(), slug);
+      const link = eventLink(origin, slug);
       const sent = await sendEventEmail({ event: found.event, kind: "confirmation", to: data.email, guest: data.name, guests: data.guests, link, replyTo: found.hostEmail });
+      emailSent = sent.ok;
       if (sent.ok) await markCardSent(row.id);
     }
-    return Response.json({ ok: true });
+    // the reply is saved either way; `emailSent` lets the page say so honestly when the confirmation could not be emailed
+    return Response.json({ ok: true, emailSent });
   } catch (err) {
     console.error("RSVP failed", err);
     return Response.json({ error: "Something went wrong. Please try again." }, { status: 500 });

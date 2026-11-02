@@ -12,7 +12,32 @@ export const setSqlForTests = (fn: Sql | undefined) => {
 
 /** The app needs Neon Postgres: users, events, guests and templates all live there. */
 export const dbEnabled = () => !!override || !!process.env.DATABASE_URL;
-export const sql = (): Sql => override ?? (neon(process.env.DATABASE_URL!) as unknown as Sql);
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Neon can drop the first request after it wakes up from idle ("Error connecting to database"); that failure never reached Postgres, so it is tried again.
+ * A request that Next.js itself cancelled (a prefetch or render that was abandoned) also surfaces as an AbortError. Nobody is waiting for that
+ * result, so it is left pending instead of being thrown, which keeps the console free of errors for work that was thrown away.
+ */
+function withRetry(run: Sql): Sql {
+  return async (strings, ...values) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await run(strings, ...values);
+      } catch (err) {
+        const message = String((err as Error)?.message);
+        if (!message.includes("Error connecting to database")) throw err;
+        if (attempt >= 1) {
+          if (message.includes("AbortError")) return new Promise<never>(() => {});
+          throw err;
+        }
+        await wait(300);
+      }
+    }
+  };
+}
+
+export const sql = (): Sql => override ?? withRetry(neon(process.env.DATABASE_URL!) as unknown as Sql);
 
 let ready: Promise<void> | undefined;
 
@@ -42,6 +67,7 @@ export function ensureSchema() {
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )`;
+    await q`alter table events add column if not exists notify_host boolean not null default true`;
     await q`create index if not exists events_owner_idx on events (owner_id)`;
     await q`create table if not exists event_rsvps (
       id uuid primary key default gen_random_uuid(),

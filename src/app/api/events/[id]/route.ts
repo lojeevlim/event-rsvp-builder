@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { deleteEvent, getEventSettings, setEventPublished } from "@/lib/data";
+import { deleteEvent, getEventSettings, setEventNotifyHost, setEventPublished } from "@/lib/data";
 import { eventGuard, readJson, refreshEventPage } from "@/lib/api";
 import { imageUrls } from "@/lib/settings-shared";
 import { deleteImage } from "@/lib/storage";
@@ -7,9 +7,11 @@ import { deleteImage } from "@/lib/storage";
 export async function PATCH(req: Request, ctx: RouteContext<"/api/events/[id]">) {
   const g = await eventGuard((await ctx.params).id);
   if ("response" in g) return g.response;
-  const parsed = z.object({ published: z.boolean() }).safeParse(await readJson(req));
+  const parsed = z.object({ published: z.boolean().optional(), notifyHost: z.boolean().optional() }).safeParse(await readJson(req));
   if (!parsed.success) return Response.json({ error: "Bad request." }, { status: 400 });
-  const event = await setEventPublished(g.event.id, parsed.data.published);
+  let event = g.event;
+  if (parsed.data.published !== undefined) event = (await setEventPublished(g.event.id, parsed.data.published)) ?? event;
+  if (parsed.data.notifyHost !== undefined) event = (await setEventNotifyHost(g.event.id, parsed.data.notifyHost)) ?? event;
   refreshEventPage(g.event.slug);
   return Response.json(event);
 }

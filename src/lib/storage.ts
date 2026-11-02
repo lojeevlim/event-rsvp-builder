@@ -22,7 +22,7 @@ export async function putImage(name: string, data: Buffer, type: string) {
     await fs.writeFile(path.join(UPLOAD_DIR, name), data);
     return;
   }
-  const res = await r2Fetch(name, { method: "PUT", body: new Uint8Array(data), headers: { "Content-Type": type } });
+  const res = await r2Fetch(name, { method: "PUT", body: new Uint8Array(data), headers: { "Content-Type": type, "Content-Length": String(data.byteLength) } });
   if (!res.ok) throw new Error(`R2 upload failed (${res.status})`);
 }
 
