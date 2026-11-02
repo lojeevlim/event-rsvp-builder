@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, PencilRuler } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import EventTabs from "@/components/EventTabs";
 import { linkButton } from "@/components/link-button";
 import { EventHeaderSkeleton } from "@/components/skeletons";
@@ -23,8 +24,8 @@ async function EventHeader({ params }: { params: Promise<{ id: string }> }) {
   return (
     <div className="grid gap-6">
       <div>
-        <Link href={mine ? "/dashboard" : "/super"} className="text-sm text-soft hover:text-fg">← {mine ? "My events" : "Super admin"}</Link>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <BackLink href={mine ? "/dashboard" : "/super"}>{mine ? "My events" : "Super admin"}</BackLink>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <h1 className="min-w-0 truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{event.title}</h1>
             <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold ${event.published ? "bg-emerald-100 text-emerald-700" : "bg-surface-muted text-soft"}`}>{event.published ? "Live" : "Hidden"}</span>

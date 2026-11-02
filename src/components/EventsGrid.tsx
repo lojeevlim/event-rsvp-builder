@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDialog, GridView } from "@/components/ui";
 import { NewEventDialog } from "@/components/NewEventButton";
+import { startNavProgress } from "@/lib/nav-progress";
 
 export type EventCard = { id: string; slug: string; title: string; published: boolean; createdAt: string; replies: number; attending: number; notAttending: number; people: number };
 
@@ -49,12 +50,20 @@ export default function EventsGrid({ events }: { events: EventCard[] }) {
             { label: "Created", value: e.createdAt.slice(0, 10) },
           ],
         }))}
-        onItemClick={(item) => router.push(`/dashboard/events/${item.id}`)}
+        onItemClick={(item) => {
+          startNavProgress();
+          router.push(`/dashboard/events/${item.id}`);
+        }}
         onAction={({ action, item }) => {
           const ev = byId.get(String(item.id));
           if (!ev) return;
-          if (action.value === "open") router.push(`/dashboard/events/${ev.id}`);
-          else if (action.value === "design") router.push(`/editor/${ev.id}`);
+          if (action.value === "open") {
+            startNavProgress();
+            router.push(`/dashboard/events/${ev.id}`);
+          } else if (action.value === "design") {
+            startNavProgress();
+            router.push(`/editor/${ev.id}`);
+          }
           else if (action.value === "view") window.open(`/e/${ev.slug}`, "_blank", "noopener,noreferrer");
           else if (action.value === "remove") {
             setError("");

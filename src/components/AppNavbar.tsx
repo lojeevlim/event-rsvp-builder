@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
+import NavProgress from "@/components/NavProgress";
 import { Navbar, NavbarItem } from "@/components/ui";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /** The signed-in app's top bar, built on the lojee-ui Navbar. Links navigate on the client (no full page reload). */
 export default function AppNavbar({ isSuperAdmin, children }: { isSuperAdmin: boolean; children: React.ReactNode }) {
@@ -17,21 +19,23 @@ export default function AppNavbar({ isSuperAdmin, children }: { isSuperAdmin: bo
   ];
 
   return (
-    <Navbar
-      sticky
-      variant="light"
-      brand={
-        <Link href="/dashboard" aria-label="Event RSVP: my events">
-          <Logo height={36} />
-        </Link>
-      }
-      actions={children}
-    >
-      {items.map((i) => (
-        <NavbarItem key={i.href} icon={i.icon} active={i.active} onClick={() => router.push(i.href)}>
-          <span className="max-sm:sr-only">{i.label}</span>
-        </NavbarItem>
-      ))}
-    </Navbar>
+    <div className="sticky top-0 z-40">
+      <Navbar
+        variant="light"
+        brand={
+          <Link href="/dashboard" aria-label="Event RSVP: my events">
+            <Logo height={36} />
+          </Link>
+        }
+        actions={children}
+      >
+        {items.map((i) => (
+          <NavbarItem key={i.href} icon={i.icon} active={i.active} onClick={() => { startNavProgress(); router.push(i.href); }}>
+            <span className="max-sm:sr-only">{i.label}</span>
+          </NavbarItem>
+        ))}
+      </Navbar>
+      <NavProgress />
+    </div>
   );
 }

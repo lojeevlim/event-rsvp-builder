@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { UserMenu } from "@/components/ui";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /** The lojee-ui user menu in the header: the profile photo when there is one, otherwise the first letter of the name. */
 export default function AccountMenu({ name, email, role, imageUrl }: { name: string; email: string; role: "super_admin" | "host"; imageUrl: string }) {
@@ -30,7 +31,12 @@ export default function AccountMenu({ name, email, role, imageUrl }: { name: str
       avatarSrc={live || undefined}
       avatarInitials={(name || email)[0].toUpperCase()}
       items={[{ label: "Profile", icon: "user" }, { label: "Sign out", danger: true }]}
-      onItemSelect={(item) => (item.label === "Profile" ? router.push("/dashboard/profile") : signOut({ redirectUrl: "/" }))}
+      onItemSelect={(item) => {
+        if (item.label === "Profile") {
+          startNavProgress();
+          router.push("/dashboard/profile");
+        } else signOut({ redirectUrl: "/" });
+      }}
     />
   );
 }

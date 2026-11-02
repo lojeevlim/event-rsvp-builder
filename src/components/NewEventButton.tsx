@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { Alert, Button, Modal } from "@/components/ui";
 import { SelectField, TextField } from "@/components/admin/fields";
 import { EVENT_TYPE_OPTIONS } from "@/lib/presets";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /** The "Create an event" dialog: asks for a name and a type, creates the event and opens its design editor. */
 export function NewEventDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -28,6 +29,7 @@ export function NewEventDialog({ open, onClose }: { open: boolean; onClose: () =
       setBusy(false);
       return;
     }
+    startNavProgress();
     router.push(`/editor/${data.id}`);
   }
 

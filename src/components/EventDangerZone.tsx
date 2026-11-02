@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertDialog, Button, Switch } from "@/components/ui";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /** Publish or hide the event, or delete it. */
 export default function EventDangerZone({ eventId, title, published, notifyHost }: { eventId: string; title: string; published: boolean; notifyHost: boolean }) {
@@ -28,7 +29,10 @@ export default function EventDangerZone({ eventId, title, published, notifyHost 
   async function remove() {
     setBusy(true);
     const res = await fetch(`/api/events/${eventId}`, { method: "DELETE" });
-    if (res.ok) router.push("/dashboard");
+    if (res.ok) {
+      startNavProgress();
+      router.push("/dashboard");
+    }
     else setBusy(false);
   }
 

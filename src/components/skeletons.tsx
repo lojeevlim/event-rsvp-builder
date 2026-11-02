@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from "react";
-import Link from "next/link";
 import { GripVertical, Keyboard, Layers, MapPin, Plus, Redo2, Sparkles, Undo2, Wrench } from "lucide-react";
+import BackLink from "@/components/BackLink";
 import EventTabs from "@/components/EventTabs";
 import { Button, ButtonGroup, GridView, Icon, SegmentButton, Skeleton } from "@/components/ui";
 import { elementMeta, GROUPS } from "@/components/palette";
@@ -79,8 +79,8 @@ export function EventHeaderSkeleton() {
   return (
     <div className="grid gap-6">
       <div>
-        <Link href="/dashboard" className="text-sm text-soft hover:text-fg">← My events</Link>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <BackLink href="/dashboard">My events</BackLink>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             {bar(36, "min(22rem, 60vw)")}
             {bar(24, 48, "rounded-full")}
