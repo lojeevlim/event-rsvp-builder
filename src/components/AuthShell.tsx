@@ -4,7 +4,7 @@ import Logo from "@/components/Logo";
 /** The login / sign-up layout: a brand panel next to the Clerk form. */
 export default function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <main className="grid flex-1 md:grid-cols-[1fr_1.1fr]">
+    <main className="anim-fade grid flex-1 md:grid-cols-[1fr_1.1fr]">
       <aside className="hidden flex-col justify-between bg-accent-600 p-10 text-white md:flex">
         <Link href="/" aria-label="Event RSVP home">
           <Logo height={46} tone="light" />

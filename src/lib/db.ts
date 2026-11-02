@@ -57,6 +57,7 @@ export function ensureSchema() {
       last_seen_at timestamptz not null default now()
     )`;
     await q`alter table users add column if not exists image_url text not null default ''`;
+    await q`alter table users add column if not exists terms_accepted_at timestamptz`;
     await q`create table if not exists events (
       id uuid primary key default gen_random_uuid(),
       owner_id uuid not null references users(id) on delete cascade,

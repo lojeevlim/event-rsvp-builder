@@ -38,6 +38,7 @@ export async function requireUser(): Promise<AppUser> {
   const s = await getSession();
   if (s.status === "signed-out") redirect("/sign-in");
   if (s.status === "disabled") redirect("/disabled");
+  if (!s.user.termsAcceptedAt) redirect("/accept-terms");
   return s.user;
 }
 

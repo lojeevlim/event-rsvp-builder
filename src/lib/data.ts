@@ -9,7 +9,7 @@ import { normalizeTheme, settingsSchema, withMapSection, type Settings } from ".
 
 export type Role = "super_admin" | "host";
 
-export type AppUser = { id: string; clerkId: string; email: string; name: string; /** profile photo address ("" = none: show the first letter) */ imageUrl: string; role: Role; active: boolean; createdAt: string; lastSeenAt: string };
+export type AppUser = { id: string; clerkId: string; email: string; name: string; /** profile photo address ("" = none: show the first letter) */ imageUrl: string; role: Role; active: boolean; createdAt: string; lastSeenAt: string; /** when they agreed to the terms (null = not yet) */ termsAcceptedAt: string | null };
 
 export type EventRow = { id: string; ownerId: string; slug: string; title: string; published: boolean; notifyHost: boolean; createdAt: string; updatedAt: string };
 /** An event with its reply counts: `people` is the number of guests who said yes (each reply counts its guests). */
@@ -37,6 +37,7 @@ const toUser = (r: Row): AppUser => ({
   email: String(r.email),
   name: String(r.name ?? ""),
   imageUrl: String(r.image_url ?? ""),
+  termsAcceptedAt: r.terms_accepted_at ? new Date(r.terms_accepted_at as string).toISOString() : null,
   role: r.role === "super_admin" ? "super_admin" : "host",
   active: !!r.active,
   createdAt: iso(r.created_at),
@@ -122,6 +123,11 @@ export async function upsertUser(input: { clerkId: string; email: string; name: 
 export async function setUserImage(id: string, imageUrl: string) {
   const q = await db();
   await q`update users set image_url = ${imageUrl} where id = ${id}`;
+}
+
+export async function acceptTerms(id: string) {
+  const q = await db();
+  await q`update users set terms_accepted_at = now() where id = ${id} and terms_accepted_at is null`;
 }
 
 export async function touchUser(id: string) {
