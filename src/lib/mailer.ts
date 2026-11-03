@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { APP_NAME } from "./brand";
 
 type Env = Record<string, string | undefined>;
 
@@ -32,7 +33,7 @@ export type Mail = { to: string; subject: string; html: string; /** where guest 
 /** Sends through Gmail. Throws, with a readable message, when the mail could not be sent. */
 export async function sendMail({ to, subject, html, replyTo, fromName }: Mail) {
   if (!gmailReady(process.env)) throw new Error("Gmail is not set up. Set GMAIL_USER and GMAIL_APP_PASSWORD.");
-  const name = (fromName ?? "Event RSVP").replace(/[<>"\r\n]/g, "").slice(0, 60) || "Event RSVP";
+  const name = (fromName ?? APP_NAME).replace(/[<>"\r\n]/g, "").slice(0, 60) || APP_NAME;
   const transporter = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } });
   try {
     await transporter.sendMail({ from: `"${name}" <${process.env.GMAIL_USER}>`, to, subject, html, ...(replyTo ? { replyTo } : {}) });

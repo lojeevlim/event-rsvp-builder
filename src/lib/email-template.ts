@@ -1,3 +1,4 @@
+import { APP_NAME } from "./brand";
 /** The customisable email layout: shared by the editor's live preview and the server that sends the mail. */
 export const EMAIL_KINDS = ["invitation", "confirmation"] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
@@ -30,7 +31,7 @@ export const DEFAULT_TEMPLATES: Record<EmailKind, EmailTemplate> = {
     buttonLabel: "See details & RSVP",
     accent: "#18181b",
     background: "#f4f4f5",
-    footer: "Sent with Event RSVP",
+    footer: `Sent with ${APP_NAME}`,
   },
   confirmation: {
     subject: "Your RSVP is confirmed — {event}",
@@ -39,7 +40,7 @@ export const DEFAULT_TEMPLATES: Record<EmailKind, EmailTemplate> = {
     buttonLabel: "View the event page",
     accent: "#18181b",
     background: "#f4f4f5",
-    footer: "Sent with Event RSVP",
+    footer: `Sent with ${APP_NAME}`,
   },
 };
 

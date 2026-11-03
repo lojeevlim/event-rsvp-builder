@@ -1,4 +1,4 @@
-# Event RSVP: how the app works
+# Rsvibe: how the app works
 
 What each kind of user can do, and where to find it.
 

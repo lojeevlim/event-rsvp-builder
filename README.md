@@ -1,4 +1,4 @@
-# Event RSVP
+# Rsvibe
 
 A multi-user app for event invitations. Hosts sign up, design an event page in a visual editor, share one public link, and see who can and can't attend. A super admin sees every user and event. Built with Next.js 16.
 
