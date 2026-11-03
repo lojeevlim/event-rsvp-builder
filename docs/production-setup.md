@@ -4,7 +4,7 @@ How the app runs in production, which service does what, and how to set each one
 
 ## Overview
 
-Event RSVP is a Next.js 16 app with many hosts, each with their own events. It needs **Neon** and **Clerk** to run at all. For email you need a **Gmail** account with an app password (free, no domain); **R2** is needed for uploaded images in production, since Vercel has no disk. See "Start free, scale later" below.
+Rsvibe is a Next.js 16 app with many hosts, each with their own events. It needs **Neon** and **Clerk** to run at all. For email you need a **Gmail** account with an app password (free, no domain); **R2** is needed for uploaded images in production, since Vercel has no disk. See "Start free, scale later" below.
 
 | Need | Service | Required | Used for |
 |---|---|---|---|

@@ -6,6 +6,7 @@ import Logo from "@/components/Logo";
 import NavProgress from "@/components/NavProgress";
 import { Navbar, NavbarItem } from "@/components/ui";
 import { startNavProgress } from "@/lib/nav-progress";
+import { APP_NAME } from "@/lib/brand";
 
 /** The signed-in app's top bar, built on the lojee-ui Navbar. Links navigate on the client (no full page reload). */
 export default function AppNavbar({ isSuperAdmin, children }: { isSuperAdmin: boolean; children: React.ReactNode }) {
@@ -23,7 +24,7 @@ export default function AppNavbar({ isSuperAdmin, children }: { isSuperAdmin: bo
       <Navbar
         variant="light"
         brand={
-          <Link href="/dashboard" aria-label="Event RSVP: my events">
+          <Link href="/dashboard" aria-label={`${APP_NAME}: my events`}>
             <Logo height={36} />
           </Link>
         }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Nunito, Fredoka, Chewy, Inter, Poppins, Lora, Playfair_Display, DM_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { APP_NAME } from "@/lib/brand";
 
 const sans = Nunito({
   variable: "--font-sans",
@@ -28,7 +29,7 @@ const dmSans = DM_Sans({ variable: "--font-dmsans", subsets: ["latin"], preload:
 const grotesk = Space_Grotesk({ variable: "--font-grotesk", subsets: ["latin"], preload: false });
 
 export const metadata: Metadata = {
-  title: { default: "Event RSVP — beautiful invitations, one link", template: "%s · Event RSVP" },
+  title: { default: `${APP_NAME} — beautiful invitations, one link`, template: `%s · ${APP_NAME}` },
   description: "Design an invitation, share one link, and see who can come.",
 };
 
