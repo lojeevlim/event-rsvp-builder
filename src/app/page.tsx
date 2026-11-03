@@ -1,7 +1,11 @@
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarHeart, Check, Link2, Mail, Palette, ShieldCheck, Users } from "lucide-react";
 import Logo from "@/components/Logo";
 import { linkButton } from "@/components/link-button";
+import { APP_NAME } from "@/lib/brand";
+import { auth } from "@clerk/nextjs/server";
+import { clerkEnabled } from "@/lib/auth";
 
 const FEATURES = [
   { Icon: Palette, title: "Design it your way", text: "A visual editor: sections, stickers, maps, countdowns, colours and fonts. Start from a ready-made type like birthday or wedding." },
@@ -18,18 +22,35 @@ const STEPS = [
   ["Share", "Copy the link, or email it to your guests, and watch the replies arrive."],
 ];
 
+/** Renders `signedIn` for signed-in visitors, else `signedOut`. Streams in so the rest of the page can still prerender. */
+async function AuthSwitch({ signedIn, signedOut }: { signedIn: ReactNode; signedOut: ReactNode }) {
+  const isSignedIn = clerkEnabled() && !!(await auth()).userId;
+  return <>{isSignedIn ? signedIn : signedOut}</>;
+}
+
+function ByAuth(props: { signedIn: ReactNode; signedOut: ReactNode }) {
+  return <Suspense fallback={props.signedOut}><AuthSwitch {...props} /></Suspense>;
+}
+
 export default function Landing() {
   return (
     <div className="flex flex-1 flex-col overflow-x-clip">
       {/* the only dotted part of the app: the top bar and the hero */}
       <div className="page-bg overflow-x-clip">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
-        <Link href="/" aria-label="Event RSVP home">
+        <Link href="/" aria-label={`${APP_NAME} home`}>
           <Logo height={42} />
         </Link>
         <nav className="flex items-center gap-2">
-          <Link href="/sign-in" className={linkButton("ghost", "sm")}>Sign in</Link>
-          <Link href="/sign-up" className={linkButton("primary", "sm")}>Get started</Link>
+          <ByAuth
+            signedIn={<Link href="/dashboard" className={linkButton("primary", "sm")}>Dashboard</Link>}
+            signedOut={
+              <>
+                <Link href="/sign-in" className={linkButton("ghost", "sm")}>Sign in</Link>
+                <Link href="/sign-up" className={linkButton("primary", "sm")}>Get started</Link>
+              </>
+            }
+          />
         </nav>
       </header>
 
@@ -51,10 +72,24 @@ export default function Landing() {
             </h1>
             <p className="anim-rise mt-6 max-w-xl text-lg leading-relaxed text-soft [--d:0.16s] md:text-xl">Design a beautiful event page, share one link, and see at a glance who can come and who can&apos;t.</p>
             <div className="anim-rise mt-8 flex flex-col gap-3 [--d:0.24s] min-[420px]:flex-row min-[420px]:flex-wrap min-[420px]:items-center md:mt-9">
-              <Link href="/sign-up" className={`${linkButton("primary", "lg")} group w-full gap-2 shadow-lg shadow-accent-600/25 min-[420px]:w-auto`}>
-                Create your event <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-              </Link>
-              <Link href="/sign-in" className={`${linkButton("outline", "lg")} w-full min-[420px]:w-auto`}>Sign in</Link>
+              <ByAuth
+                signedIn={
+                  <>
+                    <Link href="/dashboard" className={`${linkButton("primary", "lg")} group w-full gap-2 shadow-lg shadow-accent-600/25 min-[420px]:w-auto`}>
+                      Create your event <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                    </Link>
+                    <Link href="/dashboard" className={`${linkButton("outline", "lg")} w-full min-[420px]:w-auto`}>Dashboard</Link>
+                  </>
+                }
+                signedOut={
+                  <>
+                    <Link href="/sign-up" className={`${linkButton("primary", "lg")} group w-full gap-2 shadow-lg shadow-accent-600/25 min-[420px]:w-auto`}>
+                      Create your event <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                    </Link>
+                    <Link href="/sign-in" className={`${linkButton("outline", "lg")} w-full min-[420px]:w-auto`}>Sign in</Link>
+                  </>
+                }
+              />
             </div>
             <ul className="anim-rise mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-soft [--d:0.32s]">
               {["Visual editor", "One shareable link", "Live guest counts"].map((t) => (
@@ -128,9 +163,10 @@ export default function Landing() {
           <div className="rounded-[36px] bg-accent-600 px-6 py-14 text-center text-white">
             <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Ready to plan your next event?</h2>
             <p className="mx-auto mt-3 max-w-md text-white/80">Create your first invitation in a few minutes.</p>
-            <Link href="/sign-up" className="mt-7 inline-flex items-center justify-center rounded-full bg-white px-8 py-3.5 text-base font-bold text-accent-700 hover:bg-white/90">
-              Get started
-            </Link>
+            <ByAuth
+              signedIn={<Link href="/dashboard" className="mt-7 inline-flex items-center justify-center rounded-full bg-white px-8 py-3.5 text-base font-bold text-accent-700 hover:bg-white/90">Go to dashboard</Link>}
+              signedOut={<Link href="/sign-up" className="mt-7 inline-flex items-center justify-center rounded-full bg-white px-8 py-3.5 text-base font-bold text-accent-700 hover:bg-white/90">Get started</Link>}
+            />
           </div>
         </section>
       </main>
