@@ -20,9 +20,9 @@ const STEPS = [
 
 export default function Landing() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col overflow-x-clip">
       {/* the only dotted part of the app: the top bar and the hero */}
-      <div className="page-bg">
+      <div className="page-bg overflow-x-clip">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
         <Link href="/" aria-label="Event RSVP home">
           <Logo height={42} />
@@ -33,10 +33,10 @@ export default function Landing() {
         </nav>
       </header>
 
-        <section className="relative mx-auto grid w-full max-w-6xl items-center gap-14 px-5 pb-20 pt-10 md:grid-cols-[1.1fr_0.9fr] md:pt-20">
+        <section className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-5 pb-16 pt-6 md:grid-cols-[1.1fr_0.9fr] md:gap-14 md:pb-20 md:pt-20">
           {/* soft aurora behind the hero */}
-          <div aria-hidden className="hero-orb pointer-events-none absolute -left-32 top-0 -z-10 h-96 w-96 rounded-full bg-accent-500/20 blur-3xl" />
-          <div aria-hidden className="hero-orb pointer-events-none absolute -right-24 bottom-0 -z-10 h-[26rem] w-[26rem] rounded-full bg-accent-600/15 blur-3xl [animation-delay:-6s]" />
+          <div aria-hidden className="hero-orb pointer-events-none absolute -left-20 top-0 -z-10 h-72 w-72 md:-left-32 md:h-96 md:w-96 rounded-full bg-accent-500/20 blur-3xl" />
+          <div aria-hidden className="hero-orb pointer-events-none absolute -right-16 bottom-0 -z-10 h-72 w-72 md:-right-24 md:h-[26rem] md:w-[26rem] rounded-full bg-accent-600/15 blur-3xl [animation-delay:-6s]" />
 
           <div>
             <p className="anim-rise mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-surface/80 py-1.5 pl-2.5 pr-4 text-xs font-semibold uppercase tracking-[0.16em] text-soft shadow-sm backdrop-blur">
@@ -46,15 +46,15 @@ export default function Landing() {
               </span>
               Event invitations, simplified
             </p>
-            <h1 className="anim-rise text-4xl font-extrabold leading-[1.04] tracking-tight [--d:0.08s] sm:text-5xl md:text-6xl lg:text-7xl">
+            <h1 className="anim-rise text-[2.5rem] font-extrabold leading-[1.06] tracking-tight [--d:0.08s] sm:text-5xl md:text-6xl lg:text-7xl">
               Invitations people <span className="hero-ink">actually reply to.</span>
             </h1>
             <p className="anim-rise mt-6 max-w-xl text-lg leading-relaxed text-soft [--d:0.16s] md:text-xl">Design a beautiful event page, share one link, and see at a glance who can come and who can&apos;t.</p>
-            <div className="anim-rise mt-9 flex flex-wrap items-center gap-3 [--d:0.24s]">
-              <Link href="/sign-up" className={`${linkButton("primary", "lg")} group gap-2 shadow-lg shadow-accent-600/25`}>
+            <div className="anim-rise mt-8 flex flex-col gap-3 [--d:0.24s] min-[420px]:flex-row min-[420px]:flex-wrap min-[420px]:items-center md:mt-9">
+              <Link href="/sign-up" className={`${linkButton("primary", "lg")} group w-full gap-2 shadow-lg shadow-accent-600/25 min-[420px]:w-auto`}>
                 Create your event <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
               </Link>
-              <Link href="/sign-in" className={linkButton("outline", "lg")}>Sign in</Link>
+              <Link href="/sign-in" className={`${linkButton("outline", "lg")} w-full min-[420px]:w-auto`}>Sign in</Link>
             </div>
             <ul className="anim-rise mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-soft [--d:0.32s]">
               {["Visual editor", "One shareable link", "Live guest counts"].map((t) => (
@@ -64,8 +64,8 @@ export default function Landing() {
           </div>
 
           {/* an illustration of the result: an invitation, its live counts and a reply arriving */}
-          <div aria-hidden className="anim-rise relative mx-auto w-full max-w-sm [--d:0.2s]">
-            <div className="hero-float absolute -left-6 -top-5 z-20 flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-3.5 py-2.5 shadow-xl [animation-delay:-2s]">
+          <div aria-hidden className="anim-rise relative mx-auto w-full max-w-sm px-1 pt-14 [--d:0.2s] md:px-0 md:pt-0">
+            <div className="hero-float absolute left-1 top-0 z-20 md:-left-6 md:-top-5 flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-3.5 py-2.5 shadow-xl [animation-delay:-2s]">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500/15 text-sm font-extrabold text-emerald-600">M</span>
               <span className="text-left text-xs leading-tight"><b className="block text-sm text-ink">Mia said yes 🎉</b><span className="text-soft">+2 guests · just now</span></span>
             </div>
