@@ -21,9 +21,9 @@ function shapeStyle(shape: Decoration["shape"]): { className: string; style?: CS
   }
 }
 
-type Props = { d: Decoration; selected?: boolean; handles?: React.ReactNode; noPath?: boolean; noDelay?: boolean } & HTMLAttributes<HTMLDivElement>;
+type Props = { d: Decoration; selected?: boolean; handles?: React.ReactNode; noPath?: boolean; noDelay?: boolean; /** editor: draw only the frame and handles (the picture itself is drawn elsewhere, on another layer) */ ghost?: boolean } & HTMLAttributes<HTMLDivElement>;
 
-export function DecorItem({ d, selected, handles, noPath, noDelay, className = "", style, ...rest }: Props) {
+export function DecorItem({ d, selected, handles, noPath, noDelay, ghost, className = "", style, ...rest }: Props) {
   const shape = shapeStyle(d.shape ?? "original");
   // path motion: it travels along the path, fades out at the end, pauses (optional), then repeats.
   // The keyframes are generated per sticker so the pause can sit inside one cycle.
@@ -59,7 +59,7 @@ export function DecorItem({ d, selected, handles, noPath, noDelay, className = "
       {frames && <style>{frames}</style>}
       <span>
         {selected && handles && <span className="pointer-events-none absolute -inset-1.5 border-2 border-dashed border-brand">{handles}</span>}
-        <span className="block" style={{ ...(d.flip ? { transform: "scaleX(-1)" } : {}), ...((d.opacity ?? 100) < 100 ? { opacity: d.opacity / 100 } : {}) }}>
+        <span className="block" style={{ ...(ghost ? { opacity: 0 } : {}), ...(d.flip ? { transform: "scaleX(-1)" } : {}), ...((d.opacity ?? 100) < 100 ? { opacity: d.opacity / 100 } : {}) }}>
           {d.kind === "art" ? (
             <ArtSvg name={d.content} />
           ) : d.kind === "image" ? (
@@ -76,11 +76,21 @@ export function DecorItem({ d, selected, handles, noPath, noDelay, className = "
 
 export default function Decorations({ items }: { items: Decoration[] }) {
   if (items.length === 0) return null;
+  const back = items.filter((d) => d.layer === "back");
+  const front = items.filter((d) => d.layer !== "back");
+  // behind: under the section's text and pictures (they sit at z-10); in front: over them
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-      {items.map((d) => (
-        <DecorItem key={d.id} d={d} />
-      ))}
-    </div>
+    <>
+      {back.length > 0 && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-[6] overflow-hidden">
+          {back.map((d) => <DecorItem key={d.id} d={d} />)}
+        </div>
+      )}
+      {front.length > 0 && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+          {front.map((d) => <DecorItem key={d.id} d={d} />)}
+        </div>
+      )}
+    </>
   );
 }

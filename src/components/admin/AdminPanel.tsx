@@ -4,6 +4,9 @@ import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type Point
 import {
   applyName,
   decorPath,
+  DEFAULT_BORDER,
+  DEFAULT_GRADIENT,
+  DEFAULT_PAGE,
   DEFAULT_PATH,
   EFFECTS,
   SHAPES,
@@ -23,11 +26,12 @@ import {
   type BlockType,
   type Decoration,
   type EventType,
+  type FontStyle,
   type Section,
   type Settings,
 } from "@/lib/settings-shared";
 import {
-  ArrowDown, ArrowLeft, ArrowUp, CalendarDays, ChevronDown, GripVertical, Layers, LayoutTemplate, Palette, SlidersHorizontal, Trash2, Keyboard, Redo2, Undo2, MapPin, MoveHorizontal, MoveVertical, Maximize2, Plus, RotateCw, Sparkles, Sticker, Type, Wrench, X, type LucideIcon,
+  ArrowDown, ArrowLeft, Columns2, Rows2, Ungroup, Eye, MailOpen, ArrowUp, CalendarDays, ChevronDown, GripVertical, Layers, LayoutTemplate, Palette, SlidersHorizontal, Trash2, Keyboard, Redo2, Undo2, MapPin, Maximize2, Plus, RotateCw, Sparkles, Sticker, Type, Wrench, X, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -36,6 +40,8 @@ import PageView from "@/components/PageView";
 import { ICON_OPTIONS } from "@/components/icons";
 import { GROUPS, PALETTE, TEXT_PRESETS } from "@/components/palette";
 import ArtSvg, { ART_OPTIONS } from "@/components/ArtSvg";
+import EnvelopeIntro from "@/components/EnvelopeIntro";
+import { asSealId, SEAL_IDS, SEAL_LABELS, SealEmblem } from "@/components/Seal";
 import { applyPreset, EVENT_TYPE_OPTIONS, isPlaceholderName, PRESETS as EVENT_PRESETS } from "@/lib/presets";
 import { DecorItem } from "@/components/Decorations";
 import { drag, type EditActions } from "@/components/edit-ui";
@@ -51,6 +57,7 @@ import {
   Image,
   Input,
   Popover,
+  Modal,
   SegmentButton,
   ThemeProvider,
   Tooltip,
@@ -62,6 +69,23 @@ import { ColorField, Grip, SelectField, SliderField, SwitchField, TextField, use
 type Sel = { section: string | null; block: string | null };
 
 const BG_OPTIONS = [["white", "Surface"], ["cream", "Muted"], ["brand", "Accent colour"], ["ink", "Dark accent"], ["plain", "None (dotted page)"]] as const;
+const GRADIENT_PRESETS: [string, string, string][] = [["Dusk", "#4338ca", "#be185d"], ["Ocean", "#0369a1", "#0f766e"], ["Forest", "#166534", "#3f6212"], ["Rose", "#fce7f3", "#fde68a"], ["Ivory", "#faf7f2", "#efe7d8"], ["Midnight", "#0f172a", "#312e81"], ["Champagne", "#f5e6c8", "#fdf6e3"], ["Mist", "#e0f2fe", "#ede9fe"]];
+/** one-click colour palettes: an accent, a mode and the font / design that suit it */
+const PALETTES: { name: string; accent: string; mode: "light" | "dark"; design: "bento" | "clay"; font: FontStyle }[] = [
+  { name: "Ivory & Gold", accent: "#a16207", mode: "light", design: "bento", font: "elegant" },
+  { name: "Soft Blush", accent: "#be185d", mode: "light", design: "clay", font: "playful" },
+  { name: "Ocean Calm", accent: "#0369a1", mode: "light", design: "bento", font: "modern" },
+  { name: "Forest Sage", accent: "#3f6212", mode: "light", design: "bento", font: "elegant" },
+  { name: "Royal Plum", accent: "#6b21a8", mode: "light", design: "bento", font: "elegant" },
+  { name: "Terracotta", accent: "#c2410c", mode: "light", design: "clay", font: "playful" },
+  { name: "Slate & Teal", accent: "#0f766e", mode: "light", design: "bento", font: "modern" },
+  { name: "Charcoal", accent: "#27272a", mode: "light", design: "bento", font: "modern" },
+  { name: "Midnight Indigo", accent: "#6d5ef0", mode: "dark", design: "bento", font: "modern" },
+  { name: "Noir Rose", accent: "#be185d", mode: "dark", design: "clay", font: "elegant" },
+];
+const ACCENT_PRESETS = ["#27272a", "#334155", "#1d4ed8", "#4f46e5", "#6d28d9", "#be185d", "#b91c1c", "#c2410c", "#a16207", "#3f6212", "#0f766e", "#0369a1"];
+const PANEL_OPTIONS = [["none", "None"], ["blob", "Soft blob"], ["arch", "Arch"], ["wavy", "Wavy sides"], ["ticket", "Ticket (notched)"]] as const;
+const FRAME_OPTIONS = [["none", "None"], ["checker", "Checkered (racing)"], ["film", "Film strip"], ["polaroid", "Polaroid"], ["double", "Double line"]] as const;
 const SIZE_OPTIONS = [["sm", "Small"], ["md", "Medium"], ["lg", "Large"], ["xl", "Extra large"]] as const;
 const TONE_OPTIONS = [["ink", "Default"], ["brand", "Accent"], ["soft", "Muted"], ["white", "Contrast (follows the background)"]] as const;
 type Clip =
@@ -113,7 +137,9 @@ async function uploadFiles(files: FileList | null, max: number, onError: (m: str
 export default function AdminPanel({ initial, eventId, eventTitle, account }: { initial: Settings; eventId: string; eventTitle: string; account: { email: string; name: string; imageUrl: string } }) {
   const [s, setS] = useState(initial);
   const [savedJson, setSavedJson] = useState(() => JSON.stringify(initial));
-  const [view, setView] = useState<"edit" | "rsvps">("edit");
+  const [view, setView] = useState<"edit" | "rsvps" | "card">("edit");
+  /** bumped to play the opening card again (it also remounts the preview so it starts from the closed envelope) */
+  const [cardPlay, setCardPlay] = useState(0);
   const [sel, setSel] = useState<Sel>({ section: null, block: null });
   const [selDecor, setSelDecor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -142,6 +168,18 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
   const [previewing, setPreviewing] = useState(false);
   const [stickerPanel, setStickerPanel] = useState(false);
   const [hist, setHist] = useState({ past: 0, future: 0 });
+  const headerRef = useRef<HTMLElement>(null);
+  /** where the preview starts: just under the header */
+  const [headerH, setHeaderH] = useState(0);
+  const startPreview = () => setPreviewing(true);
+  // measured after the header has settled (its second row is hidden while previewing) and again if the window is resized
+  useEffect(() => {
+    if (!previewing) return;
+    const measure = () => setHeaderH(headerRef.current?.offsetHeight ?? 0);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [previewing]);
   const past = useRef<Settings[]>([]);
   const future = useRef<Settings[]>([]);
   const last = useRef<Settings>(initial);
@@ -195,7 +233,36 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
 
   const actions: EditActions = {
     moveBlock(id, toSection, index) {
+  const [multi, setMulti] = useState<string[]>([]);
+  // the group bar blurs in and out (lojee-ui "blur" transition); it stays mounted while the exit plays
+  const [barCount, setBarCount] = useState(0);
+  const barOpen = multi.length > 1;
+  useEffect(() => {
+    if (barOpen) return setBarCount(multi.length);
+    const t = setTimeout(() => setBarCount(0), 450);
+    return () => clearTimeout(t);
+  }, [barOpen, multi.length]);
       setS((prev) => {
+    groupBlocks(ids, dir) {
+      const sec = s.sections.find((x) => ids.every((id) => x.blocks.some((b) => b.id === id)));
+      if (!sec) return setMsg({ ok: false, text: "Pick elements from one section to group them." });
+      const picked = sec.blocks.filter((b) => ids.includes(b.id));
+      const gid = nextId("g", sec.blocks.map((b) => b.group));
+      const first = sec.blocks.indexOf(picked[0]);
+      const rest = sec.blocks.filter((b) => !ids.includes(b.id));
+      const at = rest.filter((b) => sec.blocks.indexOf(b) < first).length;
+      const made = picked.map((b) => (dir === "none" ? { ...b, group: "" } : { ...b, group: gid, groupDir: dir, x: 0, y: 0 }));
+      // an ungrouped element keeps its place; grouped ones are gathered at the first one's place so they sit side by side
+      const blocks = dir === "none" ? sec.blocks.map((b) => made.find((m) => m.id === b.id) ?? b) : [...rest.slice(0, at), ...made, ...rest.slice(at)];
+      setS((prev) => ({ ...prev, sections: prev.sections.map((x) => (x.id === sec.id ? { ...x, blocks } : x)) }));
+      setMulti([]);
+    },
+    placeBlock(id, x, y) {
+      setS((prev) => ({
+        ...prev,
+        sections: prev.sections.map((sec) => (sec.blocks.some((b) => b.id === id) ? { ...sec, blocks: sec.blocks.map((b) => (b.id === id ? { ...b, x, y } : b)) } : sec)),
+      }));
+    },
         const from = prev.sections.find((x) => x.blocks.some((b) => b.id === id));
         const block = from?.blocks.find((b) => b.id === id);
         if (!from || !block) return prev;
@@ -277,6 +344,12 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     },
     selectSection(id) {
       setSel({ section: id, block: null });
+    async importSticker(sectionId, id) {
+      const res = await fetch("/api/illustrations/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.url) return setMsg({ ok: false, text: data?.error ?? "Could not import that illustration." });
+      addSticker({ kind: "image", content: data.url, size: 96, effect: "none", color: "#ffffff" }, sectionId);
+    },
       setSelKind("section");
     },
     editSection(id) {
@@ -296,6 +369,10 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     },
     toggleHidden(id) {
       updateSection(id, { hidden: !s.sections.find((x) => x.id === id)?.hidden });
+    setBorder(id, patch) {
+      const cur = s.sections.find((x) => x.id === id);
+      if (cur) updateSection(id, { border: { ...cur.border, ...patch } });
+    },
     },
     duplicateSection(id) {
       const src = s.sections.find((x) => x.id === id);
@@ -318,7 +395,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     addSection(index) {
       if (s.sections.length >= MAX_SECTIONS) return setMsg({ ok: false, text: "Too many sections." });
       const id = nextId("s", s.sections.map((x) => x.id));
-      const sec: Section = { id, name: "New section", bg: "white", bgColor: "", hidden: false, effect: "none", card: false, wide: false, pad: "lg", blocks: [] };
+      const sec: Section = { id, name: "New section", bg: "white", bgColor: "", hidden: false, panel: "none", border: DEFAULT_BORDER, gradient: DEFAULT_GRADIENT, effect: "none", card: false, wide: false, pad: "lg", grow: 0, blocks: [] };
       setS((prev) => {
         const list = [...prev.sections];
         list.splice(index, 0, sec);
@@ -330,9 +407,52 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
 
   function addSticker(p: Partial<Decoration>, sectionId?: string) {
     const target = s.sections.find((x) => x.id === sectionId) ?? curSection ?? s.sections[0];
+  /** a floating sticker becomes an element of the layout (other elements move around it) */
+  function stickerToLayout(d: Decoration) {
+    const sec = s.sections.find((x) => x.id === d.section);
+    if (!sec || sec.blocks.length >= MAX_BLOCKS) return setMsg({ ok: false, text: "That section is full." });
+    const b: Block = { ...newBlock("illustration", nextId("b", s.sections.flatMap((x) => x.blocks.map((k) => k.id)))), deco: { kind: d.kind, content: d.content, size: d.size, rotate: d.rotate, color: d.color, effect: d.effect, flip: d.flip, sx: d.sx, sy: d.sy, shape: d.shape, opacity: d.opacity } };
+    const at = Math.round((d.y / 100) * sec.blocks.length);
+    setS((prev) => ({
+      ...prev,
+      decorations: prev.decorations.filter((x) => x.id !== d.id),
+      sections: prev.sections.map((x) => (x.id === sec.id ? { ...x, blocks: [...x.blocks.slice(0, at), b, ...x.blocks.slice(at)] } : x)),
+    }));
+    setSelDecor(null);
+    setSel({ section: sec.id, block: b.id });
+    setSelKind("block");
+    setElementPanel(true);
+  }
+
+  /** a layout illustration goes back to floating freely where it sits now */
+  function illustrationToFixed(b: Block) {
+    const sec = s.sections.find((x) => x.blocks.some((k) => k.id === b.id));
+    if (!sec || !b.deco) return;
+    if (s.decorations.length >= MAX_DECORATIONS) return setMsg({ ok: false, text: `Up to ${MAX_DECORATIONS} stickers per page.` });
+    const secEl = previewRef.current?.querySelector<HTMLElement>(`[data-section="${sec.id}"]`);
+    const el = previewRef.current?.querySelector<HTMLElement>(`[data-block="${b.id}"]`);
+    let x = 50, y = 50;
+    if (secEl && el) {
+      const sr = secEl.getBoundingClientRect(), er = el.getBoundingClientRect();
+      x = clamp(((er.left + er.width / 2 - sr.left) / sr.width) * 100);
+      y = clamp(((er.top + er.height / 2 - sr.top) / sr.height) * 100);
+    }
+    const d: Decoration = { id: nextId("d", s.decorations.map((k) => k.id)), section: sec.id, x, y, path: DEFAULT_PATH, layer: "front", ...b.deco };
+    setS((prev) => ({
+      ...prev,
+      decorations: [...prev.decorations, d],
+      sections: prev.sections.map((x) => (x.id === sec.id ? { ...x, blocks: x.blocks.filter((k) => k.id !== b.id) } : x)),
+    }));
+    setSel({ section: sec.id, block: null });
+    setSelDecor(d.id);
+    setSelKind("sticker");
+    setStickerPanel(true);
+    setElementPanel(false);
+  }
+
     if (!target) return;
     if (s.decorations.length >= MAX_DECORATIONS) return setMsg({ ok: false, text: `Up to ${MAX_DECORATIONS} stickers per page.` });
-    const d: Decoration = { id: nextId("d", s.decorations.map((x) => x.id)), section: target.id, kind: "text", content: "Hooray!", x: 50, y: 50, size: 40, rotate: 0, color: "#a1a1aa", effect: "float", ...p, flip: p.flip ?? false, sx: p.sx ?? 1, sy: p.sy ?? 1, shape: p.shape ?? "original", opacity: p.opacity ?? 100, path: p.path ?? DEFAULT_PATH };
+    const d: Decoration = { id: nextId("d", s.decorations.map((x) => x.id)), section: target.id, kind: "text", content: "Hooray!", x: 50, y: 50, size: 40, rotate: 0, color: "#a1a1aa", effect: "float", ...p, flip: p.flip ?? false, sx: p.sx ?? 1, sy: p.sy ?? 1, shape: p.shape ?? "original", opacity: p.opacity ?? 100, layer: p.layer ?? "front", path: p.path ?? DEFAULT_PATH };
     setS((prev) => ({ ...prev, decorations: [...prev.decorations, d] }));
     setSel({ section: target.id, block: null });
     setSelDecor(d.id);
@@ -387,16 +507,88 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
 
   function onPreviewClick(e: React.MouseEvent) {
     const t = e.target as HTMLElement;
+  // hold and drag on an empty part of a section to draw a box; every element it touches is picked (shift / ctrl / cmd adds to the picks)
+  const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const justBoxed = useRef(false);
+  function startMarquee(e: React.PointerEvent) {
+    const t = e.target as HTMLElement;
+    // touch screens: press and hold an element to start picking; then tap more elements to add or remove them
+    const blockId = t.closest<HTMLElement>("[data-block]")?.dataset.block;
+    if (e.pointerType === "touch" && blockId && !t.closest("[data-action]")) {
+      const x0 = e.clientX, y0 = e.clientY;
+      const timer = setTimeout(() => {
+        setMulti((m) => (m.includes(blockId) ? m : [...m, blockId]));
+        justBoxed.current = true;
+        navigator.vibrate?.(20);
+        cleanup();
+        setTimeout(() => (justBoxed.current = false), 400);
+      }, 450);
+      const cancel = (ev: PointerEvent) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cleanup(); };
+      const cleanup = () => {
+        clearTimeout(timer);
+        window.removeEventListener("pointermove", cancel);
+        window.removeEventListener("pointerup", cleanup);
+        window.removeEventListener("pointercancel", cleanup);
+      };
+      window.addEventListener("pointermove", cancel);
+      window.addEventListener("pointerup", cleanup);
+      window.addEventListener("pointercancel", cleanup);
+      return;
+    }
+    const secEl = t.closest<HTMLElement>("[data-section]");
+    if (e.pointerType === "touch") return; // a finger drag on empty space scrolls the page
+    if (e.button !== 0 || !secEl || t.closest("[data-block],[data-action],.decor,[data-keep],input,textarea,select,button,a")) return;
+    const x1 = e.clientX, y1 = e.clientY;
+    const base = e.shiftKey || e.metaKey || e.ctrlKey ? multi : [];
+    let on = false;
+    const move = (ev: PointerEvent) => {
+      if (!on && Math.hypot(ev.clientX - x1, ev.clientY - y1) < 5) return;
+      on = true;
+      window.getSelection()?.removeAllRanges();
+      const box = { x1: Math.min(x1, ev.clientX), y1: Math.min(y1, ev.clientY), x2: Math.max(x1, ev.clientX), y2: Math.max(y1, ev.clientY) };
+      setMarquee(box);
+      const hit = [...secEl.querySelectorAll<HTMLElement>("[data-block]")]
+        .filter((n) => { const r = n.getBoundingClientRect(); return r.right >= box.x1 && r.left <= box.x2 && r.bottom >= box.y1 && r.top <= box.y2; })
+        .map((n) => n.dataset.block!);
+      setMulti([...new Set([...base, ...hit])]);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setMarquee(null);
+      if (on) {
+        justBoxed.current = true; // the click that ends the drag must not clear the picks
+        setTimeout(() => (justBoxed.current = false), 0);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
     if (t.closest("[data-action]")) return; // toolbar buttons handle themselves
+    if (justBoxed.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     // inside the editor a click only selects: no scrolling, links or buttons run
     e.preventDefault();
     e.stopPropagation();
-    if (t.closest(".decor, [data-keep]")) return; // stickers and their path handle keep the selection
+    if (t.closest(".decor:not(.decor-flow), [data-keep]")) return; // stickers and their path handle keep the selection
     setSelDecor(null);
     const section = t.closest<HTMLElement>("[data-section]")?.dataset.section ?? null;
     const block = t.closest<HTMLElement>("[data-block]")?.dataset.block ?? null;
     const part = (t.closest<HTMLElement>("[data-rsvp-part]")?.dataset.rsvpPart as RsvpPartKey | undefined) ?? null;
     setRsvpPartKey(section && block ? part : null);
+    // shift / ctrl / cmd + click picks several elements to group (while picking, a plain tap does too, for touch screens)
+    if (block && (e.shiftKey || e.metaKey || e.ctrlKey || multi.length > 0)) {
+      setMulti((m) => {
+        const base = m.length || !sel.block || sel.block === block ? m : [sel.block];
+        return base.includes(block) ? base.filter((id) => id !== block) : [...base, block];
+      });
+      return;
+    }
+    setMulti([]);
     if (section) {
       setSel({ section, block });
       if (block) setElementPanel(!part); // a clicked form piece opens its own panel instead of the whole element's
@@ -535,7 +727,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     const k = e.key.toLowerCase();
     if (mod && k === "s") {
       e.preventDefault();
-      if (view === "edit" && dirty && !saving) save();
+      if (view !== "rsvps" && dirty && !saving) save();
       return;
     }
     if (previewing) {
@@ -640,8 +832,11 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
       hidden: false,
       effect: "none",
       card: false,
+      panel: "none",
+      border: DEFAULT_BORDER,
+      gradient: DEFAULT_GRADIENT,
       wide: false,
-      pad: "lg",
+      pad: "lg", grow: 0,
       blocks: [mk("heading", { text: "Find us" }), mk("text", { text: "Directions and parking tips for getting here.", size: "lg", tone: "soft" }), map],
     };
     setS((prev) => {
@@ -760,8 +955,15 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
           </Tooltip>
         </Popover>
       )}
-      {parts.includes("view") && <Tooltip content="Preview — the page as visitors will see it, including unsaved changes" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
-        <Button size="sm" shape="pill" icon="eye" aria-label="Preview" className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`} onClick={() => setPreviewing(true)}><span className={compact ? "hidden" : ""}>Preview</span></Button>
+      {parts.includes("theme") && view === "edit" && (
+        <Tooltip content="Opening card" position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
+          <Button size="sm" shape="pill" aria-label="Opening card" className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`} onClick={() => setView("card")}>
+            <MailOpen size={15} className={compact ? "" : "mr-1"} /> <span className={compact ? "hidden" : ""}>Opening card</span>
+          </Button>
+        </Tooltip>
+      )}
+      {parts.includes("view") && <Tooltip content={previewing ? "Back to the editor" : "Preview — the page as visitors will see it, including unsaved changes"} position="bottom" classNames={{ bubble: compact ? "" : "hidden" }}>
+        <Button size="sm" shape="pill" icon={previewing ? "pencil" : "eye"} aria-label={previewing ? "Back to Edit" : "Preview"} className={`font-semibold shadow-sm ${compact ? "px-2" : "max-sm:px-2.5 max-sm:text-xs"}`} onClick={() => (previewing ? setPreviewing(false) : startPreview())}><span className={compact ? "hidden" : ""}>{previewing ? "Back to Edit" : "Preview"}</span></Button>
       </Tooltip>}
     </>
   );
@@ -772,9 +974,9 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
   return (
     <>
       <div className="flex h-screen flex-col overflow-hidden bg-surface-muted text-fg">
-        <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs sm:gap-3 sm:px-5 sm:py-3">
+        <header ref={headerRef} className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs sm:gap-3 sm:px-5 sm:py-3">
           <Link
-            href={`/dashboard/events/${eventId}`}
+            href={`/event/${eventId}`}
             title="Back to the event"
             aria-label={`Back to ${eventTitle}`}
             className="group mr-1 flex min-w-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-1 text-xs font-semibold shadow-sm transition-colors hover:border-accent-500 hover:bg-surface-muted sm:mr-3 sm:pr-3.5 sm:text-sm"
@@ -789,6 +991,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
             <SegmentButton active={view === "edit"} icon="palette" onClick={() => setView("edit")}>Edit page</SegmentButton>
             <SegmentButton active={view === "rsvps"} icon="users" onClick={() => setView("rsvps")}>RSVPs</SegmentButton>
           </ButtonGroup>
+            <SegmentButton active={view === "card"} icon="mail-open" onClick={() => setView("card")}>Opening card</SegmentButton>
           {/* phones: on the first row, at the right end, level with the RSVPs tab */}
           <UserMenu transition="blur" transitionDelay={60} className="ml-auto sm:hidden" name={account.name} email={account.email} avatarSrc={account.imageUrl || undefined} avatarInitials={(account.name || account.email)[0].toUpperCase()} items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
           <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end sm:ml-auto">
@@ -805,12 +1008,40 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
             <UserMenu transition="blur" transitionDelay={60} className="max-sm:hidden" name={account.name} email={account.email} avatarSrc={account.imageUrl || undefined} avatarInitials={(account.name || account.email)[0].toUpperCase()} items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
           </div>
           {/* own row below lg: Event & theme and Preview on the left, Save on the right */}
-          <div className={`flex w-full items-center justify-between gap-2 ${view === "edit" ? "lg:hidden" : ""}`}>
+          <div className={`flex w-full items-center justify-between gap-2 ${previewing ? "hidden" : view === "edit" ? "lg:hidden" : ""}`}>
             <div className="flex flex-wrap items-center gap-2">{actionButtons(["theme", "view"])}</div>
           </div>
         </header>
 
-        {view === "rsvps" ? (
+        {view === "card" ? (
+          <div className="flex-1 overflow-auto bg-surface-muted p-4 sm:p-6">
+            <div className="mx-auto grid max-w-6xl items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="relative">
+                <ThemeProvider isolated mode={s.theme.mode} accent={s.theme.accent} design={s.theme.design}>
+                  <div data-font={s.theme.font} className={`text-fg ${s.page.intro.on ? "" : "opacity-40 saturate-50"}`}>
+                    <EnvelopeIntro
+                      key={cardPlay}
+                      intro={s.page.intro}
+                      edit={{ autoplay: cardPlay > 0, onChange: (p) => setS((prev) => ({ ...prev, page: { ...prev.page, intro: { ...prev.page.intro, ...p } } })) }}
+                    />
+                  </div>
+                </ThemeProvider>
+                {!s.page.intro.on && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl bg-surface/60 text-center backdrop-blur-[1px]">
+                    <p className="text-sm font-semibold">The opening card is off — guests go straight to your page.</p>
+                    <Button size="sm" shape="pill" className="font-semibold" onClick={() => setS((prev) => ({ ...prev, page: { ...prev.page, intro: { ...prev.page.intro, on: true } } }))}>Turn it on</Button>
+                  </div>
+                )}
+                <p className="mt-2 text-center text-xs text-soft">Click any text to change it. Tap the envelope to see it open.</p>
+              </div>
+              <Card variant="elevated" padding="lg" className="grid gap-4">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-soft">Opening card</h2>
+                <CardTool s={s} setS={setS} onTry={() => setCardPlay((n) => n + 1)} />
+                <SaveButton dirty={dirty} saving={saving} onClick={save} />
+              </Card>
+            </div>
+          </div>
+        ) : view === "rsvps" ? (
           <div className="flex-1 overflow-auto p-6">
             <div className="mx-auto max-w-4xl">
               <Card variant="elevated" padding="lg">
@@ -882,13 +1113,14 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                 }}
               >
                 {/* large screens: an oval bar of page actions above the page */}
+                onPointerDown={startMarquee}
                 <div data-action className="fx-invert sticky top-0 z-[60] mb-3 mx-auto hidden max-w-[1100px] justify-between lg:flex">
                   <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["theme", "view"], false, "bar")}</div>
                 </div>
                 {/* only this preview takes the site theme — the admin UI itself stays as it is */}
                 <ThemeProvider isolated mode={s.theme.mode} accent={s.theme.accent} design={s.theme.design}>
                   <div data-font={s.theme.font} className={`editing ${sel.section ? "has-selection" : ""} page-bg mx-auto max-w-[1100px] overflow-x-clip rounded-2xl pt-1 text-fg ring-1 ring-border`}>
-                    <PageView s={display} edit={{ selected: sel, layer, actions, sticker: stickerInfo }} />
+                    <PageView s={display} edit={{ selected: sel, multi, layer, actions, sticker: stickerInfo, illoHandles: (b) => (b.deco ? stickerHandles({ id: b.id, section: "", x: 50, y: 50, path: DEFAULT_PATH, layer: "front", ...b.deco }, (_, patch) => updateBlock(b.id, { deco: { ...b.deco!, ...(patch as Partial<NonNullable<Block["deco"]>>) } }), () => removeBlockAsk(b.id)) : null) }} />
                   </div>
                 </ThemeProvider>
               </div>
@@ -896,8 +1128,20 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
             {/* always-visible list of everything added to the selected section */}
             <aside className="max-h-56 w-full shrink-0 overflow-y-auto overscroll-contain border-t border-border bg-surface lg:max-h-none lg:w-[clamp(176px,14vw,300px)] lg:border-l lg:border-t-0">
               <div className={`sticky top-0 z-10 flex h-14 w-full shrink-0 items-center gap-2 bg-surface/95 px-3 backdrop-blur lg:h-[65px] ${addedOpen ? "border-b border-border" : "max-lg:border-b-0"} lg:border-b lg:border-border`}>
-                {view === "edit" ? <SaveButton dirty={dirty} saving={saving} onClick={save} /> : <div className="flex-1" />}
+                <SaveButton dirty={dirty} saving={saving} onClick={save} />
                 <button type="button" aria-expanded={addedOpen} aria-label="Show or hide what is in this section" onClick={() => setAddedOpen((o) => !o)} className="flex shrink-0 items-center gap-2 rounded-full p-1 lg:hidden">
+                {marquee && <i aria-hidden className="pointer-events-none fixed z-[90] rounded-md border-2 border-brand bg-brand/15" style={{ left: marquee.x1, top: marquee.y1, width: marquee.x2 - marquee.x1, height: marquee.y2 - marquee.y1 }} />}
+                {barCount > 0 && (
+                  <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[70] flex justify-center px-3">
+                  <div data-action role="toolbar" aria-label="Group selected elements" data-state={barOpen ? "open" : "closed"} className={`lojee-tr lojee-tr-blur ${barOpen ? "" : "pointer-events-none"} pointer-events-auto flex w-full max-w-xl flex-wrap items-center justify-center gap-2 rounded-3xl bg-white px-3 py-2.5 text-slate-900 shadow-2xl ring-4 ring-brand/30 sm:w-auto sm:rounded-full sm:px-4`}>
+                    <span className="flex w-full items-center justify-center gap-2 text-sm font-extrabold sm:w-auto"><span className="grid h-6 min-w-6 place-items-center rounded-full bg-brand px-1.5 text-xs text-white">{barCount}</span>selected</span>
+                    <button type="button" onClick={() => actions.groupBlocks(multi, "row")} className="flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-2 text-sm font-bold text-white shadow-sm active:scale-95"><Columns2 size={16} />Row</button>
+                    <button type="button" onClick={() => actions.groupBlocks(multi, "col")} className="flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-2 text-sm font-bold text-white shadow-sm active:scale-95"><Rows2 size={16} />Column</button>
+                    <button type="button" onClick={() => actions.groupBlocks(multi, "none")} className="flex items-center gap-1.5 rounded-full border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 active:scale-95"><Ungroup size={16} />Ungroup</button>
+                    <button type="button" aria-label="Clear selection" onClick={() => setMulti([])} className="grid h-9 w-9 place-items-center rounded-full text-slate-600 hover:bg-slate-100"><X size={16} /></button>
+                  </div>
+                  </div>
+                )}
                   {layerSection && <Badge variant="soft" size="xs" color="blue">{layerSection.blocks.length + s.decorations.filter((d) => d.section === layerSection.id).length}</Badge>}
                   <ChevronDown size={16} className={`shrink-0 text-soft transition-transform ${addedOpen ? "" : "-rotate-90"}`} aria-hidden />
                 </button>
@@ -965,18 +1209,16 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         )}
 
         {previewing && (
-          <div className="fixed inset-0 z-50 overflow-auto bg-surface-muted">
-            <div className="sticky top-0 z-[60] flex items-center justify-between gap-3 border-b border-border bg-surface/90 px-4 py-2 backdrop-blur">
-              <div className="flex items-center gap-2 text-sm">
-                <Badge variant="soft" size="sm">Preview</Badge>
-                <span className="text-soft">{dirty ? "Includes your unsaved changes" : "Matches the live page"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <a href="/" target="_blank">
-                  <Button variant="ghost" size="sm">Open live page ↗</Button>
-                </a>
-                <Button size="sm" icon="x" onClick={() => setPreviewing(false)}>Back to editor</Button>
-              </div>
+          <div className="fixed inset-x-0 bottom-0 z-50 overflow-auto bg-surface-muted" style={{ top: headerH }}>
+            <div className="pointer-events-none sticky top-0 z-[60] flex justify-center px-4 pt-3">
+              <span className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-accent-700 via-accent-600 to-accent-400 py-1.5 pl-3 pr-4 text-[11px] font-bold uppercase tracking-[0.22em] text-white shadow-lg shadow-accent-600/30 ring-1 ring-inset ring-white/30">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                </span>
+                <Eye size={13} strokeWidth={2.25} />
+                Preview
+              </span>
             </div>
             <ThemeProvider isolated mode={s.theme.mode} accent={s.theme.accent} design={s.theme.design}>
               <div
@@ -987,7 +1229,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                   e.stopPropagation();
                 }}
               >
-                <PageView s={display} />
+                <PageView s={display} introTop={headerH} />
               </div>
             </ThemeProvider>
           </div>
@@ -1006,6 +1248,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         </AnimatePresence>
 
         <AnimatePresence>
+              onPosition={() => stickerToLayout(curDecor)}
         {stickersPanel && !previewing && (
           <FloatingPanel key="stickers" panelId="stickers" title="Text stickers" onClose={() => setStickersPanel(false)} onDone={() => setStickersPanel(false)}>
             <DecorTools
@@ -1040,7 +1283,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         <AnimatePresence>
         {elementPanel && curBlock && !previewing && (
           <FloatingPanel key="element" panelId="element" title={`Element: ${PALETTE.find((p) => p.type === curBlock.type)?.label ?? curBlock.type}`} onClose={() => closeElementPanel(true)} onDone={() => closeElementPanel(false)} closeHint={justAddedBlock && untouched(curBlock) ? "Cancel — removes the element you just added" : "Close"}>
-            <BlockEditor b={curBlock} set={(p) => updateBlock(curBlock.id, p)} remove={() => removeBlockAsk(curBlock.id)} setMsg={setMsg} onEditPart={(k) => { setRsvpPartKey(k); }} />
+            <BlockEditor b={curBlock} onToFixed={() => illustrationToFixed(curBlock)} set={(p) => updateBlock(curBlock.id, p)} remove={() => removeBlockAsk(curBlock.id)} setMsg={setMsg} onEditPart={(k) => { setRsvpPartKey(k); }} />
           </FloatingPanel>
         )}
         </AnimatePresence>
@@ -1127,6 +1370,7 @@ function SaveButton({ dirty, saving, onClick }: { dirty: boolean; saving: boolea
       disabled={!dirty || saving}
       onClick={onClick}
       className="min-w-0 flex-1 font-semibold"
+const DESIGN_OPTIONS = [["bento", "Bento", "Flat, clean cards"], ["clay", "Clay", "Soft, rounded, friendly"]] as const;
     >
       {saving ? "Saving…" : dirty ? "Save changes" : "All saved"}
     </Button>
@@ -1156,14 +1400,91 @@ function ThemeTool({ s, setS, onPickType }: { s: Settings; setS: React.Dispatch<
         )}
       </div>
       <ColorField
-        label="Theme"
-        value={/^#[0-9a-fA-F]{6}$/.test(s.theme.accent) ? s.theme.accent : "#18181b"}
-        presets={["#18181b", "#0f172a", "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#0ea5e9"]}
+        label="Accent colour"
+        value={/^#[0-9a-fA-F]{6}$/.test(s.theme.accent) ? s.theme.accent : "#27272a"}
+        presets={ACCENT_PRESETS}
         onChange={(accent) => set({ accent })}
       />
       <SwitchField label="Dark mode" checked={s.theme.mode === "dark"} onChange={(dark) => set({ mode: dark ? "dark" : "light" })} />
       <SelectField label="Font style" value={s.theme.font} options={FONT_OPTIONS} onChange={(font) => set({ font })} />
-      <p className="text-xs text-soft">The accent colour, mode and font style restyle the whole site, and every lojee-ui component on it.</p>
+      <p className="text-xs text-soft">The accent colour, mode, design and font style restyle the whole site, and every lojee-ui component on it.</p>
+
+      <div className="grid gap-3 border-t border-border pt-4">
+        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Page style</span>
+        <SelectField
+          label="Page style"
+          value={s.page.mode}
+          options={[["flow", "Scrolling page"], ["screens", "Screen by screen (each snaps into place)"]]}
+          onChange={(mode) => setPage({ mode })}
+        />
+        {s.page.mode === "screens" && (
+          <SelectField label="Screen transition" value={s.page.transition} options={[["rise", "Rise up"], ["zoom", "Zoom in"], ["slide", "Slide from the sides"], ["fade", "Fade"]]} onChange={(transition) => setPage({ transition })} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+const PAPER_PRESETS = ["#fbf7ef", "#ffffff", "#fbe4e6", "#e3effa", "#e2f3e8", "#e8d3b0", "#ece6f7", "#3f3f46"];
+const WAX_PRESETS = ["#b91c1c", "#7f1d1d", "#b8860b", "#1e3a8a", "#166534", "#27272a", "#be185d", "#0f766e"];
+const CARD_BG_FROM = ["#ffffff", "#fff7ed", "#f0f9ff", "#fdf2f8", "#f7fee7", "#18181b"];
+const CARD_BG_TO = ["#e0e7ff", "#fde68a", "#bae6fd", "#fbcfe8", "#d9f99d", "#312e81"];
+const CARD_TEXT = ["#27272a", "#7f1d1d", "#1e3a8a", "#166534", "#6b21a8", "#ffffff"];
+
+/** The opening card: a sealed envelope guests tap first. Its words, shape, paper, wax seal, background and writing are all set here. */
+function CardTool({ s, setS, onTry }: { s: Settings; setS: React.Dispatch<React.SetStateAction<Settings>>; onTry: () => void }) {
+  const intro = s.page.intro;
+  const setIntro = (p: Partial<Settings["page"]["intro"]>) => setS((prev) => ({ ...prev, page: { ...prev.page, intro: { ...prev.page.intro, ...p } } }));
+  const heading = (label: string) => <p className="border-b border-border pb-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-soft">{label}</p>;
+  /** a colour that follows the theme until you pick one */
+  const colour = (label: string, key: "paper" | "sealColor" | "bgFrom" | "bgTo" | "textColor", presets: string[], themed: string) => (
+    <div className="grid gap-1.5">
+      <ColorField label={label} value={intro[key] || themed} presets={presets} onChange={(v) => setIntro({ [key]: v })} />
+      {intro[key] && <Button variant="outline" size="xs" className="justify-self-start" onClick={() => setIntro({ [key]: "" })}>Use the theme colour</Button>}
+    </div>
+  );
+  const letter = (intro.sender.replace(/\{name\}/gi, "").trim()[0] ?? "A").toUpperCase();
+  return (
+    <div className="grid gap-4">
+      <SwitchField label="Opening card — a sealed envelope, tap to open" checked={intro.on} onChange={(on) => setIntro({ on })} />
+      {intro.on ? (
+        <>
+          {heading("Words")}
+          <TextField label="Heading" value={intro.title} maxLength={80} onChange={(title) => setIntro({ title })} />
+          <TextField label="From — use {name} for the event name" value={intro.sender} maxLength={60} onChange={(sender) => setIntro({ sender })} />
+          <TextField label="Hint under the envelope" value={intro.hint} maxLength={60} onChange={(hint) => setIntro({ hint })} />
+          <TextField label="Message on the letter (optional)" value={intro.letter} maxLength={60} onChange={(letter) => setIntro({ letter })} />
+
+          {heading("Envelope")}
+          <SelectField label="Shape" value={intro.shape} options={[["classic", "Classic — soft corners"], ["sharp", "Sharp — square corners"], ["soft", "Soft — very round"], ["arch", "Arch — curved flap"]]} onChange={(shape) => setIntro({ shape })} />
+          {colour("Paper colour", "paper", PAPER_PRESETS, "#fbf7ef")}
+
+          {heading("Wax seal")}
+          <div className="flex flex-wrap gap-1.5">
+            {SEAL_IDS.map((id) => (
+              <button key={id} type="button" title={SEAL_LABELS[id]} aria-label={`${SEAL_LABELS[id]} seal`} aria-pressed={asSealId(intro.seal) === id} onClick={() => setIntro({ seal: id })} className={`flex h-9 w-9 items-center justify-center rounded-lg border text-accent-700 ${asSealId(intro.seal) === id ? "border-fg bg-surface-muted" : "border-border hover:border-fg/40"}`}>
+                <SealEmblem id={id} letter={letter} size={20} />
+              </button>
+            ))}
+          </div>
+          {colour("Wax colour", "sealColor", WAX_PRESETS, s.theme.accent)}
+
+          {heading("Background")}
+          {colour("Top colour", "bgFrom", CARD_BG_FROM, "#ffffff")}
+          {colour("Bottom colour", "bgTo", CARD_BG_TO, s.theme.accent)}
+
+          {heading("Writing")}
+          <SelectField label="Font" value={intro.font} options={[["serif", "Serif — elegant"], ["script", "Script — handwritten"], ["sans", "Sans — clean"], ["rounded", "Rounded — friendly"]]} onChange={(font) => setIntro({ font })} />
+          {colour("Text colour", "textColor", CARD_TEXT, "#27272a")}
+
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" shape="pill" icon="eye" className="font-semibold" onClick={onTry}>Try the opening card</Button>
+            <Button size="sm" shape="pill" variant="outline" onClick={() => setIntro({ shape: "classic", paper: "", sealColor: "", bgFrom: "", bgTo: "", textColor: "", font: "serif", letter: "" })}>Reset the look</Button>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-soft">Off. Turn it on and guests see a wax-sealed envelope first; tapping it opens the letter and reveals your page.</p>
+      )}
     </div>
   );
 }
@@ -1204,7 +1525,7 @@ function SectionEditor({ sec, set, remove }: { sec: Section; set: (p: Partial<Se
               <ColorField
                 label="Colour"
                 value={sec.bgColor}
-                presets={["#ffffff", "#f4f4f5", "#18181b", "#fef3c7", "#fce7f3", "#dbeafe", "#dcfce7", "#ef4444", "#6366f1", "#0ea5e9"]}
+                presets={["#ffffff", "#faf7f2", "#f4f4f5", "#eef2ff", "#ecfdf5", "#fff1f2", "#fef9c3", "#18181b"]}
                 onChange={(bgColor) => set({ bgColor })}
               />
               <Button variant="outline" size="xs" className="justify-self-start" onClick={() => set({ bgColor: "" })}>
@@ -1243,6 +1564,7 @@ function rsvpPartOps(b: Block, set: (p: Partial<Block>) => void) {
     setPart: (key: RsvpPartKey, patch: Partial<RsvpPart>) => set({ parts: parts.map((p) => (p.key === key ? { ...p, ...patch } : p)) }),
     move: (key: RsvpPartKey, d: number) => {
       const a = [...parts];
+  const setPage = (p: Partial<Settings["page"]>) => setS((prev) => ({ ...prev, page: { ...prev.page, ...p } }));
       const i = a.findIndex((p) => p.key === key);
       if (i < 0 || i + d < 0 || i + d >= a.length) return;
       [a[i], a[i + d]] = [a[i + d], a[i]];
@@ -1263,13 +1585,49 @@ function RsvpPartEditor({ b, partKey, set, onRemoved }: { b: Block; partKey: Rsv
         <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Position</span>
         <div className="flex items-center gap-1">
           <button type="button" className={RSVP_ICON_BTN} aria-label="Move up" title="Move up" disabled={i === 0} onClick={() => move(partKey, -1)}><ArrowUp size={14} /></button>
+      <div className="grid gap-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Palettes</span>
+        <div className="grid grid-cols-5 gap-2">
+          {PALETTES.map((p) => {
+            const accent = fitAccent(p.accent, p.mode);
+            const on = s.theme.accent === accent && s.theme.mode === p.mode;
+            return (
+              <button key={p.name} type="button" title={p.name} aria-label={`${p.name} palette`} aria-pressed={on} onClick={() => set({ accent, mode: p.mode, design: p.design, font: p.font })} className={`relative h-9 overflow-hidden rounded-xl border transition-transform hover:scale-105 ${on ? "border-fg ring-2 ring-fg/20" : "border-border"}`} style={{ background: p.mode === "dark" ? "#14141a" : "#faf8f4" }}>
+                <span className="absolute inset-x-1.5 bottom-1.5 top-4 rounded-md" style={{ background: accent }} />
+                <span className="absolute left-1.5 top-1.5 h-1.5 w-5 rounded-full" style={{ background: p.mode === "dark" ? "#ffffff55" : "#00000026" }} />
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-soft">A palette sets the colour, light or dark mode, design and font together.</p>
+      </div>
           <button type="button" className={RSVP_ICON_BTN} aria-label="Move down" title="Move down" disabled={i === parts.length - 1} onClick={() => move(partKey, 1)}><ArrowDown size={14} /></button>
         </div>
       </div>
       <SwitchField label={meta.required ? "Shown (the form needs this)" : "Show this piece"} checked={!p.hidden} onChange={(show) => !meta.required && setPart(partKey, { hidden: !show })} />
       <div className="grid grid-cols-3 gap-2">
         <SelectField label="Size" value={p.size} options={SIZE_OPTIONS} onChange={(size) => setPart(partKey, { size })} />
+      {/^#[0-9a-fA-F]{6}$/.test(s.theme.accent) && whiteContrast(s.theme.accent) < 4.5 && (
+        <Alert variant="warning" icon={false}>
+          This colour is light, so white button text can be hard to read.{" "}
+          <button type="button" className="font-semibold underline" onClick={() => set({ accent: fitAccent(s.theme.accent, s.theme.mode) })}>Make it readable</button>
+        </Alert>
+      )}
         <SelectField label="Align" value={p.align} options={[["left", "Left"], ["center", "Center"], ["right", "Right"]]} onChange={(align) => setPart(partKey, { align })} />
+      <div className="grid gap-1.5">
+        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Design</span>
+        <div className="grid grid-cols-2 gap-2">
+          {DESIGN_OPTIONS.map(([id, label, hint]) => (
+            <button key={id} type="button" aria-pressed={s.theme.design === id} onClick={() => set({ design: id })} className={`grid gap-1.5 rounded-xl border p-2 text-left transition-colors ${s.theme.design === id ? "border-fg bg-surface-muted" : "border-border hover:border-fg/40"}`}>
+              <span className="flex h-9 items-center justify-center rounded-lg bg-surface-muted">
+                <span className="h-5 w-12 bg-accent-600" style={{ borderRadius: id === "clay" ? 999 : 5, boxShadow: id === "clay" ? "0 3px 0 rgba(0,0,0,.22)" : "0 4px 10px -4px var(--color-accent-600)" }} />
+              </span>
+              <span className="text-xs font-bold">{label}</span>
+              <span className="text-[11px] leading-snug text-soft">{hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
         <SelectField label="Width" value={p.width} options={[["half", "Half"], ["full", "Full"], ["fit", "Fit"]]} onChange={(width) => setPart(partKey, { width })} />
       </div>
       {RSVP_FIELDS.some((f) => f.group === partKey) && (
@@ -1302,9 +1660,28 @@ function RsvpPartEditor({ b, partKey, set, onRemoved }: { b: Block; partKey: Rsv
   );
 }
 
-function BlockEditor({ b, set, remove, setMsg, onEditPart }: { b: Block; set: (p: Partial<Block>) => void; remove: () => void; setMsg: (m: { ok: boolean; text: string }) => void; onEditPart?: (key: RsvpPartKey) => void }) {
-  const t = (field: "text" | "text2" | "text3" | "url" | "icon", label: string, long = false) => (
+function BlockEditor({ b, set, remove, setMsg, onEditPart, onToFixed }: { onToFixed?: () => void; b: Block; set: (p: Partial<Block>) => void; remove: () => void; setMsg: (m: { ok: boolean; text: string }) => void; onEditPart?: (key: RsvpPartKey) => void }) {
+  const t = (field: "text" | "text2" | "text3" | "url" | "icon" | "back", label: string, long = false) => (
     <TextField label={label} value={b[field]} long={long} onChange={(v) => set({ [field]: v })} />
+        <div className="grid gap-3 rounded-xl border border-border p-3">
+          <SwitchField label="Gradient background" checked={sec.gradient.on} onChange={(on) => set({ gradient: { ...sec.gradient, on } })} />
+          {sec.gradient.on ? (
+            <>
+              <div className="h-12 rounded-lg border border-border" style={{ backgroundImage: `linear-gradient(${sec.gradient.angle}deg, ${sec.gradient.from}, ${sec.gradient.to})` }} />
+              <div className="flex flex-wrap gap-1.5">
+                {GRADIENT_PRESETS.map(([name, from, to]) => (
+                  <button key={name} type="button" title={name} aria-label={`${name} gradient`} onClick={() => set({ gradient: { ...sec.gradient, from, to } })} className="h-7 w-7 rounded-full border border-black/10 transition-transform hover:scale-110" style={{ backgroundImage: `linear-gradient(135deg, ${from}, ${to})` }} />
+                ))}
+              </div>
+              <ColorField label="From" value={sec.gradient.from} presets={["#6366f1", "#0ea5e9", "#14b8a6", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#18181b"]} onChange={(from) => set({ gradient: { ...sec.gradient, from } })} />
+              <ColorField label="To" value={sec.gradient.to} presets={["#ec4899", "#8b5cf6", "#06b6d4", "#84cc16", "#f97316", "#facc15", "#fda4af", "#ffffff"]} onChange={(to) => set({ gradient: { ...sec.gradient, to } })} />
+              <SliderField label="Direction (degrees)" value={sec.gradient.angle} min={0} max={360} onChange={(angle) => set({ gradient: { ...sec.gradient, angle } })} />
+              <Button variant="outline" size="xs" className="justify-self-start" onClick={() => set({ gradient: { ...sec.gradient, from: sec.gradient.to, to: sec.gradient.from } })}>Swap colours</Button>
+            </>
+          ) : (
+            <p className="text-xs text-soft">Off — a smooth blend of two colours behind this section.</p>
+          )}
+        </div>
   );
   const rsvp = rsvpPartOps(b, set);
   const sizeSel = (label = "Size") => <SelectField label={label} value={b.size} options={SIZE_OPTIONS} onChange={(size) => set({ size })} />;
@@ -1327,14 +1704,16 @@ function BlockEditor({ b, set, remove, setMsg, onEditPart }: { b: Block; set: (p
             <div className="grid grid-cols-2 gap-2">{sizeSel()}{toneSel}</div>
           </>
         )}
+        <SliderField label="Extra height below the content (px)" value={sec.grow} min={0} max={400} onChange={(grow) => set({ grow })} />
         {b.type === "script" && t("text", "Text")}
+        <SelectField label="Panel shape behind the content" value={sec.panel} options={PANEL_OPTIONS} onChange={(panel) => set({ panel })} />
         {b.type === "button" && (
           <>
             {t("text", "Button text")}
             {t("url", "Link (#rsvp, or https://…)")}
             <SelectField
               label="Animation"
-              value={b.text2 || "glow"}
+              value={b.text2 || "none"}
               options={[["none", "None"], ...ANIMATED_VARIANTS.map((a) => [a, a.replace("-", " ").replace(/^./, (c) => c.toUpperCase())] as const)]}
               onChange={(text2) => set({ text2 })}
             />
@@ -1456,6 +1835,8 @@ function MapFields({ b, set, setMsg }: { b: Block; set: (p: Partial<Block>) => v
   return (
     <>
       <TextField label="Title (shown on the pin)" value={b.text} onChange={(text) => set({ text })} />
+            <SelectField label="When tapped" value={b.tap} options={[["none", "Nothing"], ["flip", "Flip over"], ["pop", "Pop (bounce)"]]} onChange={(tap) => set({ tap })} />
+            {b.tap === "flip" && t("back", "Text on the back", true)}
       <TextField label="Address" value={b.text2} placeholder="e.g. 10 Downing Street, London" onChange={(text2) => set({ text2 })} />
       <Button variant="outline" size="sm" icon="map-pin" loading={busy} className="justify-self-start" onClick={find}>
         Find on map
@@ -1511,7 +1892,17 @@ function GalleryField({ b, set, setMsg }: { b: Block; set: (p: Partial<Block>) =
                   <Grip {...dnd.handle(i)} />
                   <Button variant="ghost" size="xs" icon="trash-2" iconOnly aria-label="Remove image" onClick={() => set({ images: images.filter((_, j) => j !== i) })} />
                 </div>
+        {(b.type === "image" || b.type === "gallery") && <SelectField label="Photo frame" value={b.frame} options={FRAME_OPTIONS} onChange={(frame) => set({ frame })} />}
               </div>
+        {b.type === "illustration" && b.deco && (
+          <StickerEditor
+            cur={{ id: b.id, section: "", x: 50, y: 50, path: DEFAULT_PATH, layer: "front", ...b.deco }}
+            inLayout
+            onPosition={() => onToFixed?.()}
+            update={(patch) => set({ deco: { ...b.deco!, ...(patch as Partial<NonNullable<Block["deco"]>>) } })}
+          />
+        )}
+        <SwitchField label="Overlap other elements (they don't move when this one is dragged)" checked={b.overlap} onChange={(overlap) => set({ overlap })} />
             </Card>
           </div>
         ))}
@@ -1533,6 +1924,64 @@ function GalleryField({ b, set, setMsg }: { b: Block; set: (p: Partial<Block>) =
 }
 
 /* ---- stickers (free-positioned decorations) ---- */
+
+/** handles on a sticker's dashed frame: rotate, resize, remove (also used by illustrations that are part of the layout) */
+function stickerHandles(d: Decoration, onChange: (id: string, patch: Partial<Decoration>) => void, onRemove: (id: string) => void) {
+    const sx = d.sx ?? 1;
+    const sy = d.sy ?? 1;
+    const grab = (mode: "rot" | "size") => (e: React.PointerEvent<HTMLElement>) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const el = e.currentTarget;
+      el.setPointerCapture(e.pointerId);
+      const box = el.closest(".decor") as HTMLElement;
+      const r = box.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const startDist = Math.hypot(e.clientX - cx, e.clientY - cy) || 1;
+      const move = (ev: PointerEvent) => {
+        if (mode === "rot") {
+          let a = (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI + 90;
+          a = ((((a + 180) % 360) + 360) % 360) - 180;
+          if (ev.shiftKey) a = Math.round(a / 15) * 15;
+          onChange(d.id, { rotate: Math.round(a) });
+          return;
+        }
+        onChange(d.id, { size: Math.max(4, Math.round(d.size * (Math.hypot(ev.clientX - cx, ev.clientY - cy) / startDist))) });
+      };
+      const up = () => {
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", up);
+      };
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+    };
+    const knob = "pointer-events-auto absolute flex h-6 w-6 touch-none items-center justify-center rounded-full border-2 border-[#2563eb] bg-white text-[#2563eb] shadow";
+    const at = (left: string, top: string) => ({ left, top, transform: `translate(-50%,-50%) scale(${1 / sx},${1 / sy})` });
+    return (
+      <>
+        <span aria-hidden className="absolute left-1/2 -top-5 h-5 w-px bg-[#2563eb]" />
+        <span title="Drag to rotate (Shift snaps to 15°)" data-keep className={`${knob} cursor-grab`} style={at("50%", "-28px")} onPointerDown={grab("rot")}><RotateCw size={13} /></span>
+        <span title="Drag to resize" data-keep className={`${knob} cursor-nwse-resize`} style={at("100%", "100%")} onPointerDown={grab("size")}><Maximize2 size={13} /></span>
+        <span
+          title="Remove"
+          role="button"
+          data-keep
+          className={`${knob} cursor-pointer border-red-500 text-red-600`}
+          style={at("0%", "0%")}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onRemove(d.id);
+          }}
+        >
+          <X size={13} />
+        </span>
+      </>
+    );
+  }
 
 function DragLayer({
   items,
@@ -1567,75 +2016,7 @@ function DragLayer({
     } else if (items.some((d) => d.id === id)) onMove(id, x, y);
   }
 
-  // handles on the dashed frame: rotate, stretch on x / y, grow evenly, remove
-  const handlesFor = (d: Decoration) => {
-    const sx = d.sx ?? 1;
-    const sy = d.sy ?? 1;
-    const grab = (mode: "rot" | "x" | "y" | "size") => (e: React.PointerEvent<HTMLElement>) => {
-      e.stopPropagation();
-      e.preventDefault();
-      const el = e.currentTarget;
-      el.setPointerCapture(e.pointerId);
-      const box = el.closest(".decor") as HTMLElement;
-      const r = box.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const rad = (d.rotate * Math.PI) / 180;
-      const local = (px: number, py: number) => ({
-        x: (px - cx) * Math.cos(rad) + (py - cy) * Math.sin(rad),
-        y: -(px - cx) * Math.sin(rad) + (py - cy) * Math.cos(rad),
-      });
-      const start = local(e.clientX, e.clientY);
-      const startDist = Math.hypot(e.clientX - cx, e.clientY - cy) || 1;
-      const k = (v: number) => Math.max(0.02, Math.round(v * 100) / 100);
-      const move = (ev: PointerEvent) => {
-        if (mode === "rot") {
-          let a = (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI + 90;
-          a = ((((a + 180) % 360) + 360) % 360) - 180;
-          if (ev.shiftKey) a = Math.round(a / 15) * 15;
-          onChange(d.id, { rotate: Math.round(a) });
-          return;
-        }
-        const p = local(ev.clientX, ev.clientY);
-        if (mode === "x") onChange(d.id, { sx: k(sx * (p.x / (start.x || 1))) });
-        else if (mode === "y") onChange(d.id, { sy: k(sy * (p.y / (start.y || 1))) });
-        else onChange(d.id, { size: Math.max(4, Math.round(d.size * (Math.hypot(ev.clientX - cx, ev.clientY - cy) / startDist))) });
-      };
-      const up = () => {
-        el.removeEventListener("pointermove", move);
-        el.removeEventListener("pointerup", up);
-        el.removeEventListener("pointercancel", up);
-      };
-      el.addEventListener("pointermove", move);
-      el.addEventListener("pointerup", up);
-      el.addEventListener("pointercancel", up);
-    };
-    const knob = "pointer-events-auto absolute flex h-6 w-6 touch-none items-center justify-center rounded-full border-2 border-[#2563eb] bg-white text-[#2563eb] shadow";
-    const at = (left: string, top: string) => ({ left, top, transform: `translate(-50%,-50%) scale(${1 / sx},${1 / sy})` });
-    return (
-      <>
-        <span aria-hidden className="absolute left-1/2 -top-5 h-5 w-px bg-[#2563eb]" />
-        <span title="Drag to rotate (Shift snaps to 15°)" data-keep className={`${knob} cursor-grab`} style={at("50%", "-28px")} onPointerDown={grab("rot")}><RotateCw size={13} /></span>
-        <span title="Drag to stretch sideways" data-keep className={`${knob} cursor-ew-resize`} style={at("100%", "50%")} onPointerDown={grab("x")}><MoveHorizontal size={13} /></span>
-        <span title="Drag to stretch up / down" data-keep className={`${knob} cursor-ns-resize`} style={at("50%", "100%")} onPointerDown={grab("y")}><MoveVertical size={13} /></span>
-        <span title="Drag to resize" data-keep className={`${knob} cursor-nwse-resize`} style={at("100%", "100%")} onPointerDown={grab("size")}><Maximize2 size={13} /></span>
-        <span
-          title="Remove"
-          role="button"
-          data-keep
-          className={`${knob} cursor-pointer border-red-500 text-red-600`}
-          style={at("0%", "0%")}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onRemove(d.id);
-          }}
-        >
-          <X size={13} />
-        </span>
-      </>
-    );
-  };
+  const handlesFor = (d: Decoration) => stickerHandles(d, onChange, onRemove);
 
   // the path as a curve, so the editor can draw it (control point recovered from the curve's midpoint)
   let curve: string | null = null;
@@ -1727,7 +2108,7 @@ function DecorTools({
   const full = all.length >= MAX_DECORATIONS;
 
   function add(p: Partial<Decoration>) {
-    const d: Decoration = { id: nextId("d", all.map((x) => x.id)), section, kind: "emoji", content: "", x: 50, y: 50, size: 40, rotate: 0, color: "#a1a1aa", effect: "none", ...p, flip: p.flip ?? false, sx: p.sx ?? 1, sy: p.sy ?? 1, shape: p.shape ?? "original", opacity: p.opacity ?? 100, path: p.path ?? DEFAULT_PATH };
+    const d: Decoration = { id: nextId("d", all.map((x) => x.id)), section, kind: "emoji", content: "", x: 50, y: 50, size: 40, rotate: 0, color: "#a1a1aa", effect: "none", ...p, flip: p.flip ?? false, sx: p.sx ?? 1, sy: p.sy ?? 1, shape: p.shape ?? "original", opacity: p.opacity ?? 100, layer: p.layer ?? "front", path: p.path ?? DEFAULT_PATH };
     setS((prev) => ({ ...prev, decorations: [...prev.decorations, d] }));
     onNew(d);
     setSel(d.id);
@@ -1754,7 +2135,31 @@ function DecorTools({
             <div
               key={p.label}
               draggable={!full}
+  // stickers set to "behind" sit under the section's elements, even while picked: the picture stays on the back layer and only its frame and handles are drawn in front
+  const behind = items.filter((d) => d.layer === "back");
+  items = items.filter((d) => d.layer !== "back");
+  const pickedBehind = behind.find((d) => d.id === selected);
+  const item = (d: Decoration) => {
+    const grab = (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      draggingRef.current = d.id;
+      onSelect(d.id);
+    };
+    return <DecorItem key={d.id} d={d} noPath selected={false} className="pointer-events-auto cursor-grab touch-none active:cursor-grabbing" onPointerDown={grab} />;
+  };
+
               onDragStart={(e) => {
+    <>
+    {behind.length > 0 && (
+      <div className="pointer-events-none absolute inset-0 z-[6] touch-none overflow-hidden" onPointerMove={move} onPointerUp={() => (draggingRef.current = null)} onPointerCancel={() => (draggingRef.current = null)}>
+        {behind.map(item)}
+      </div>
+    )}
+    {pickedBehind && (
+      <div className="pointer-events-none absolute inset-0 z-20 touch-none overflow-hidden" onPointerMove={move} onPointerUp={() => (draggingRef.current = null)} onPointerCancel={() => (draggingRef.current = null)}>
+        <DecorItem d={pickedBehind} noPath ghost selected handles={handlesFor(pickedBehind)} className="pointer-events-auto cursor-grab touch-none active:cursor-grabbing" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); draggingRef.current = pickedBehind.id; }} />
+      </div>
+    )}
                 drag.current = { kind: "sticker", preset: p.d };
                 e.dataTransfer.setData("text/plain", p.label);
                 e.dataTransfer.effectAllowed = "copy";
@@ -1798,7 +2203,8 @@ function DecorTools({
 
 
 /** The sticker settings, shown inside the floating panel. */
-function StickerEditor({ cur, update }: { cur: Decoration; update: (patch: Partial<Decoration>) => void }) {
+    </>
+function StickerEditor({ cur, update, onPosition, inLayout = false }: { cur: Decoration; update: (patch: Partial<Decoration>) => void; /** switch between floating (fixed) and part of the layout */ onPosition: () => void; inLayout?: boolean }) {
   return (
     <div className="grid gap-4">
       {cur.kind === "image" ? (
@@ -1909,6 +2315,15 @@ function Connector({ panel, selector }: { panel: string; selector: string }) {
       />
       <circle cx={geo.sx} cy={geo.sy} r="4" fill="#2563eb" />
       <circle cx={geo.ex} cy={geo.ey} r="5" fill="#fff" stroke="#2563eb" strokeWidth="2.5" />
+      <div className="grid gap-1.5">
+        <p className="text-xs font-bold uppercase tracking-wide">Position</p>
+        <div className="flex gap-1">
+          {([[false, "Fixed"], [true, "Part of layout"]] as const).map(([v, label]) => (
+            <button key={label} type="button" onClick={() => v !== inLayout && onPosition()} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-semibold ${v === inLayout ? "bg-fg text-surface" : "bg-surface-muted text-soft hover:text-fg"}`}>{label}</button>
+          ))}
+        </div>
+        <p className="text-xs text-soft">{inLayout ? "Sits in the page like any element: dragging it moves the elements around it." : "Floats freely over the section; other elements never move."}</p>
+      </div>
     </svg>
   );
 }
@@ -1929,7 +2344,7 @@ function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", w
       initial={{ opacity: 0, filter: "blur(12px)", scale: 0.96 }}
       animate={{ opacity: 1, filter: "blur(0px)", scale: 1, transition: { duration: 0.28, delay: 0.06, ease: [0.22, 1, 0.36, 1] } }}
       exit={{ opacity: 0, filter: "blur(12px)", scale: 0.96, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } }}
-      className="fixed z-40 flex max-h-[75vh] flex-col overflow-hidden rounded-2xl border border-border bg-surface text-fg shadow-2xl"
+      className="fixed z-[110] flex max-h-[75vh] flex-col overflow-hidden rounded-2xl border border-border bg-surface text-fg shadow-2xl"
       style={{ left: pos.x, top: pos.y, width }}
       role="dialog"
       aria-label={title}
@@ -1944,7 +2359,9 @@ function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", w
         }}
         onPointerMove={(e) => {
           if (!grab.current) return;
+      {!inLayout && <SelectField label="Layer (never moves other elements)" value={cur.layer ?? "front"} options={[["front", "In front of all elements"], ["back", "Behind all elements"]]} onChange={(layer) => update({ layer })} />}
           const next = {
+      {!inLayout && (
             x: Math.min(window.innerWidth - 80, Math.max(0, e.clientX - grab.current.dx)),
             y: Math.min(window.innerHeight - 48, Math.max(0, e.clientY - grab.current.dy)),
           };
@@ -1966,6 +2383,7 @@ function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", w
       <div className="border-t border-border bg-surface p-3">
         <Button shape="pill" size="sm" className="w-full font-semibold" onClick={onDone}>
           Done
+      )}
         </Button>
       </div>
     </motion.div>

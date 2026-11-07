@@ -7,11 +7,36 @@ export const MAX_BLOCKS = 60;
 export const EFFECTS = ["none", "float", "wiggle", "pulse", "spin", "bounce", "swing", "shake", "tada"] as const;
 export const SHAPES = ["original", "rounded", "circle", "square", "heart", "star", "hexagon"] as const;
 export const KINDS = ["text", "graffiti", "emoji", "art", "image"] as const;
-export const BLOCK_TYPES = ["badge", "heading", "text", "script", "button", "image", "gallery", "emoji", "card", "step", "countdown", "rsvp", "divider", "spacer", "map"] as const;
+export const BLOCK_TYPES = ["badge", "heading", "text", "script", "button", "image", "gallery", "emoji", "card", "step", "countdown", "rsvp", "divider", "spacer", "map", "illustration"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 export const SECTION_EFFECTS = ["none", "balloons", "graffiti", "confetti", "hearts", "stars", "snow", "rain", "bubbles", "fireflies", "fireworks"] as const;
 export const EVENT_TYPES = ["general", "birthday", "anniversary", "wedding", "christmas", "new-year", "baby-shower", "graduation", "housewarming", "corporate"] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
+/** Illustrated edge designs for a section's top / bottom / left / right (the artwork lives in components/BorderArt.tsx) */
+export const BORDER_IDS = ["none", "scallop", "bunting", "balloons", "hearts", "stars", "vine", "snow", "confetti", "waves", "lights", "zigzag", "flowers", "gold", "clouds", "road", "spikes", "planets", "paws", "bubbles", "checker"] as const;
+export type BorderId = (typeof BORDER_IDS)[number];
+export const DEFAULT_BORDER = { top: "none", bottom: "none", left: "none", right: "none", size: "md", curve: 0, wave: 0 } as const;
+/** optional two-colour gradient behind a section (when `on`, it replaces the background colour) */
+export const DEFAULT_GRADIENT = { on: false, from: "#e0e7ff", to: "#fce7f3", angle: 135 } as const;
+/** How the page behaves: scrolling, or one screen at a time (each snaps into place and plays its own transition), plus an optional envelope that is opened first. */
+export const PAGE_MODES = ["flow", "screens"] as const;
+export const SCREEN_TRANSITIONS = ["rise", "zoom", "slide", "fade"] as const;
+/** the shapes the opening card's envelope can take, and the fonts for its writing */
+export const ENVELOPE_SHAPES = ["classic", "sharp", "soft", "arch"] as const;
+export const ENVELOPE_FONTS = ["serif", "script", "sans", "rounded"] as const;
+export const DEFAULT_PAGE = {
+  mode: "flow",
+  transition: "rise",
+  intro: { on: false, title: "You have a letter from:", sender: "{name}", hint: "Tap the envelope to open", seal: "heart", shape: "classic", paper: "", sealColor: "", bgFrom: "", bgTo: "", textColor: "", font: "serif", letter: "" },
+} as const;
+/** frames for pictures (image and gallery blocks) */
+export const FRAMES = ["none", "checker", "film", "polaroid", "double"] as const;
+export type Frame = (typeof FRAMES)[number];
+/** what an info card does when it is tapped */
+export const TAPS = ["none", "flip", "pop"] as const;
+/** the shape of the panel behind a section's content */
+export const PANELS = ["none", "blob", "arch", "wavy", "ticket"] as const;
+export type Panel = (typeof PANELS)[number];
 export const BGS = ["white", "cream", "brand", "ink", "plain"] as const;
 
 export const DEFAULT_PATH = { on: false, x: 80, y: 20, curve: 0, duration: 6, delay: 0 };
@@ -112,6 +137,22 @@ export const EFFECT_LABELS: [(typeof SECTION_EFFECTS)[number], string][] = [
   ["graffiti", "Graffiti falling & fading"],
 ];
 
+/** how an illustration looks (the same settings a floating sticker has); used by "illustration" blocks, which sit in the page layout instead of floating */
+const decoLook = z.object({
+  kind: z.enum(KINDS),
+  content: text(120),
+  size: z.number().min(4).max(5000),
+  rotate: z.number().min(-180).max(180),
+  color: hex,
+  effect: z.enum(EFFECTS),
+  flip: z.boolean().default(false),
+  sx: z.number().min(0.02).max(200).default(1),
+  sy: z.number().min(0.02).max(200).default(1),
+  shape: z.enum(SHAPES).default("original"),
+  opacity: z.number().min(5).max(100).default(100),
+});
+export type DecoLook = z.infer<typeof decoLook>;
+
 const block = z
   .object({
     id: text(40),
@@ -127,8 +168,23 @@ const block = z
     /** countdown only: background effect that plays once the countdown reaches zero (the heading shown then is `text3`) */
     fxBg: z.enum(SECTION_EFFECTS).default("none"),
     images: z.array(z.object({ url: upload, alt: text() })).max(MAX_IMAGES).default([]),
+    /** picture frame (image and gallery blocks) */
+    frame: z.enum(FRAMES).default("none"),
+    /** info cards: what happens when tapped, and the text on the back when it flips */
+    tap: z.enum(TAPS).default("none"),
+    back: text(200).default(""),
     /** RSVP form: text overrides by key (see RSVP_FIELDS); a missing or empty key uses the default */
     labels: z.record(z.string(), text(300)).default({}),
+    /** "illustration" blocks only: the picture / emoji / text and how it looks */
+    deco: decoLook.nullable().default(null),
+    /** blocks that share a group id (and sit next to each other) are laid out together, side by side ("row") or stacked ("col"); "" = not grouped */
+    group: text(20).default(""),
+    groupDir: z.enum(["row", "col"]).default("col"),
+    /** true: when moved down or up it floats over the other elements (they stay put, and it can overlap them); false: it pushes the elements below it */
+    overlap: z.boolean().default(false),
+    /** free position: sideways offset in % of the section width, downward offset in px (0,0 = the normal flow) */
+    x: z.number().min(-100).max(100).default(0),
+    y: z.number().min(-2000).max(4000).default(0),
     /** RSVP form: order, visibility, size, alignment and width of each piece (empty = the standard layout) */
     parts: z.array(rsvpPart).max(10).default([]),
   })
@@ -150,10 +206,17 @@ const section = z.object({
   /** optional custom background colour (overrides `bg`); "" = use the preset */
   bgColor: z.union([hex, z.literal("")]).default(""),
   hidden: z.boolean(),
+  /** shape of the panel behind the content (none = no panel) */
+  panel: z.enum(PANELS).default("none"),
+  gradient: z.object({ on: z.boolean(), from: hex, to: hex, angle: z.number().min(0).max(360) }).default(DEFAULT_GRADIENT),
+  /** illustrated border on each side, and how big the artwork is */
+  border: z.object({ top: z.enum(BORDER_IDS), bottom: z.enum(BORDER_IDS), left: z.enum(BORDER_IDS), right: z.enum(BORDER_IDS), size: z.enum(["sm", "md", "lg", "xl"]), curve: z.number().min(-100).max(100).default(0), wave: z.number().min(0).max(100).default(0) }).default(DEFAULT_BORDER),
   effect: z.enum(SECTION_EFFECTS).default("none"),
   card: z.boolean(),
   wide: z.boolean(),
   pad: z.enum(["sm", "md", "lg"]),
+  /** extra empty space (px) added below the section's content, making it taller */
+  grow: z.number().min(0).max(1000).default(0),
   blocks: z.array(block).max(MAX_BLOCKS),
 });
 
@@ -162,6 +225,31 @@ export const settingsSchema = z.object({
   /** one-time page upgrades already applied (so a section you delete is not added back) */
   upgrades: z.array(text(40)).max(20).default([]),
   eventType: z.enum(EVENT_TYPES).default("general"),
+  page: z
+    .object({
+      mode: z.enum(PAGE_MODES),
+      transition: z.enum(SCREEN_TRANSITIONS),
+      intro: z
+        .object({
+          on: z.boolean(),
+          title: text(80),
+          sender: text(60),
+          hint: text(60),
+          seal: text(8),
+          /** envelope outline: classic (soft corners), sharp, soft (very round) or arch (curved flap) */
+          shape: z.enum(ENVELOPE_SHAPES).default("classic"),
+          /** colours; "" = follow the theme */
+          paper: z.union([hex, z.literal("")]).default(""),
+          sealColor: z.union([hex, z.literal("")]).default(""),
+          bgFrom: z.union([hex, z.literal("")]).default(""),
+          bgTo: z.union([hex, z.literal("")]).default(""),
+          textColor: z.union([hex, z.literal("")]).default(""),
+          font: z.enum(ENVELOPE_FONTS).default("serif"),
+          /** a short message written on the letter that slides out */
+          letter: text(60).default(""),
+        }),
+    })
+    .default(DEFAULT_PAGE),
   theme: z.object({ mode: z.enum(["light", "dark"]), accent: text(40).regex(/^([a-z]+|#[0-9a-fA-F]{6})$/), design: z.enum(["bento", "clay"]), font: z.enum(FONT_STYLES).default("playful") }),
   sections: z.array(section).max(MAX_SECTIONS),
   decorations: z
@@ -185,6 +273,8 @@ export const settingsSchema = z.object({
         shape: z.enum(SHAPES).default("original"),
         /** 5–100 % */
         opacity: z.number().min(5).max(100).default(100),
+        /** in front of the section's text and pictures, or behind them (it never moves them either way) */
+        layer: z.enum(["front", "back"]).default("front"),
         path: pathSchema.default(DEFAULT_PATH),
       })
         .refine((d) => d.kind !== "image" || upload.safeParse(d.content).success, { path: ["content"], message: "An image sticker needs an uploaded picture" }),
@@ -227,13 +317,13 @@ export function applyName(s: Settings): Settings {
 }
 
 export function newBlock(type: BlockType, id: string): Block {
-  const base: Block = { id, type, text: "", text2: "", text3: "", url: "", icon: "", size: "md", tone: "ink", caps: false, fxBg: "none", images: [], labels: {}, parts: [] };
+  const base: Block = { id, type, text: "", text2: "", text3: "", url: "", icon: "", size: "md", tone: "ink", caps: false, fxBg: "none", images: [], labels: {}, parts: [], frame: "none", tap: "none", back: "", group: "", groupDir: "col", overlap: false, deco: null, x: 0, y: 0 };
   switch (type) {
     case "badge": return { ...base, text: "New badge" };
     case "heading": return { ...base, text: "New heading", size: "lg" };
     case "text": return { ...base, text: "Write something here…", tone: "soft" };
     case "script": return { ...base, text: "★ Handwritten ★" };
-    case "button": return { ...base, text: "Click me", url: "#rsvp", text2: "glow" };
+    case "button": return { ...base, text: "Click me", url: "#rsvp", text2: "none" };
     case "image": return base;
     case "gallery": return base;
     case "emoji": return { ...base, text: "🎈", size: "xl" };
@@ -245,6 +335,7 @@ export function newBlock(type: BlockType, id: string): Block {
     case "map": return { ...base, text: "Find us", icon: "14" };
     case "divider": return base;
     case "spacer": return base;
+    case "illustration": return { ...base, deco: { kind: "emoji", content: "🎈", size: 80, rotate: 0, color: "#a1a1aa", effect: "none", flip: false, sx: 1, sy: 1, shape: "original", opacity: 100 } };
   }
 }
 
@@ -342,7 +433,7 @@ export function withMapSection(s: Settings): Settings {
   const usedSections = s.sections.map((x) => x.id);
   const sec = (id: string, name: string, p: Partial<Section>, blocks: Block[]): Section => ({
     id: usedSections.includes(id) ? next("s", usedSections) : id,
-    name, bg: "white", bgColor: "", hidden: false, effect: "none", card: false, wide: false, pad: "lg", ...p, blocks,
+    name, bg: "white", bgColor: "", hidden: false, panel: "none", border: DEFAULT_BORDER, gradient: DEFAULT_GRADIENT, effect: "none", card: false, wide: false, pad: "lg", grow: 0, ...p, blocks,
   });
   const event = s.sections.find((x) => x.id === "event");
   const card = event?.blocks.filter((c) => c.type === "card")[1]; // the "Where" card
@@ -357,7 +448,7 @@ export function fromLegacy(l: any): Settings {
   let n = 0;
   const b = (type: BlockType, p: Partial<Block> = {}): Block => ({ ...newBlock(type, `b${++n}`), ...p });
   const sec = (id: string, name: string, p: Partial<Section>, blocks: Block[]): Section => ({
-    id, name, bg: "white", bgColor: "", hidden: false, effect: "none", card: false, wide: false, pad: "lg", ...p, blocks,
+    id, name, bg: "white", bgColor: "", hidden: false, panel: "none", border: DEFAULT_BORDER, gradient: DEFAULT_GRADIENT, effect: "none", card: false, wide: false, pad: "lg", grow: 0, ...p, blocks,
   });
   const e = l.event;
   const maps = e.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${e.place} ${e.address}`)}`;
@@ -366,15 +457,16 @@ export function fromLegacy(l: any): Settings {
     eventType: "general",
     upgrades: ["map-section"],
     theme: normalizeTheme(l.theme),
+    page: DEFAULT_PAGE,
     decorations: (l.decorations ?? []).map((d: any) => ({ ...d, section: d.section ?? "hero" })),
     sections: [
-      sec("hero", "Hero", { card: true }, [
+      sec("hero", "Hero", {}, [
         b("badge", { text: l.hero.badge }),
         b("heading", { text: l.hero.line1, size: "xl", caps: true }),
         b("heading", { text: l.hero.line2, size: "xl", caps: true, tone: "brand" }),
         b("script", { text: l.hero.tagline }),
         b("text", { text: l.hero.subtitle, size: "lg", tone: "soft" }),
-        b("button", { text: l.hero.button, url: "#rsvp", text2: "glow" }),
+        b("button", { text: l.hero.button, url: "#rsvp", text2: "none" }),
       ]),
       sec("countdown", "Countdown", { bg: "brand", pad: "md", hidden: !l.countdown.enabled }, [
         b("countdown", { text: l.countdown.label, text2: l.countdown.target, tone: "white" }),
@@ -398,7 +490,7 @@ export function fromLegacy(l: any): Settings {
         b("gallery", { images: l.gallery.images }),
       ]),
       sec("rsvp", "RSVP", { bg: "cream" }, [b("rsvp", { text: l.rsvp.title, text2: l.rsvp.subtitle })]),
-      sec("footer", "Footer", { bg: "ink", card: true, pad: "md" }, [
+      sec("footer", "Footer", { bg: "ink", pad: "md" }, [
         b("heading", { text: l.footer.title, size: "sm", caps: true, tone: "white" }),
         b("text", { text: l.footer.text, tone: "white" }),
       ]),

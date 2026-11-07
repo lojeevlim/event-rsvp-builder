@@ -87,6 +87,13 @@ h1, h2, h3, .font-display {
 
 /* ---- admin block editing ---- */
 .editing [data-block]:hover:not(.is-selected) { outline: 2px solid color-mix(in oklab, var(--edit-sel) 70%, transparent); outline-offset: 3px; border-radius: 8px; background: color-mix(in oklab, var(--edit-sel) 7%, transparent); }
+.editing [data-block].is-picked { outline: 3px solid var(--edit-sel); outline-offset: 4px; border-radius: 8px; background: color-mix(in oklab, var(--edit-sel) 14%, transparent); box-shadow: 0 0 0 8px color-mix(in oklab, var(--edit-sel) 22%, transparent); animation: pick-glow 1.6s ease-in-out infinite; }
+.pick-bar { animation: pick-bar-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes pick-bar-in { from { opacity: 0; transform: translate(-50%, 24px); } }
+.pick-badge { animation: pick-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes pick-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes pick-glow { 50% { box-shadow: 0 0 0 12px color-mix(in oklab, var(--edit-sel) 8%, transparent); } }
+.editing [data-group] { outline: 1px dashed color-mix(in oklab, var(--edit-sel) 45%, transparent); outline-offset: 6px; border-radius: 10px; }
 .editing [data-block].is-selected { outline: 3px solid var(--edit-sel); outline-offset: 4px; border-radius: 8px; }
 .drop-line { position: absolute; left: 0; right: 0; height: 4px; border-radius: 2px; background: var(--color-accent-500); z-index: 40; pointer-events: none; }
 
@@ -118,6 +125,12 @@ h1, h2, h3, .font-display {
 .editing.has-selection [data-section]:not(.is-selected) { opacity: 0.45; filter: saturate(0.6); }
 .editing.has-selection [data-section]:not(.is-selected):hover { opacity: 0.85; filter: none; }
 .editing [data-section].is-selected { z-index: 1; }
+/* the section under the mouse (and its name tag) always sits above the others */
+.editing [data-section]:hover, .editing [data-section].is-selected:hover { z-index: 50; }
+/* an illustration that is part of the layout: the blue frame hugs the picture itself, so it follows rotate / stretch / mirror */
+.editing [data-block]:has(.decor-flow) { outline: none !important; background: none !important; box-shadow: none !important; animation: none !important; }
+.editing [data-block]:hover:not(.is-selected) .decor-flow > span { outline: 2px solid color-mix(in oklab, var(--edit-sel) 70%, transparent); outline-offset: 3px; border-radius: 8px; }
+.editing [data-block].is-picked .decor-flow > span { outline: 3px dashed var(--edit-sel); outline-offset: 4px; border-radius: 8px; background: color-mix(in oklab, var(--edit-sel) 14%, transparent); }
 .editing [data-block].is-selected { animation: select-pulse 0.7s ease-out; }
 @keyframes select-pulse {
   from { box-shadow: 0 0 0 0 color-mix(in oklab, var(--edit-sel) 55%, transparent); }

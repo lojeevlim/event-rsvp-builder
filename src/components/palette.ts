@@ -37,6 +37,7 @@ export const PALETTE: { type: BlockType; Icon: LucideIcon; label: string }[] = [
   { type: "map", Icon: MapPin, label: "Map" },
   { type: "divider", Icon: Minus, label: "Divider" },
   { type: "spacer", Icon: MoveVertical, label: "Spacer" },
+  { type: "illustration", Icon: Sticker, label: "Illustration" },
 ];
 
 export const GROUPS: { title: string; Icon: LucideIcon; types: ElementType[] }[] = [
