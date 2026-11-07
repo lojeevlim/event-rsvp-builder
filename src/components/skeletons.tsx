@@ -444,11 +444,11 @@ export function EditorSkeleton() {
                 { label: "Stickers", GroupIcon: Sparkles, rows: 3, grip: false },
               ].map(({ label, GroupIcon, rows, grip }) => (
                 <div key={label} className="grid gap-1">
-                  <p className="flex w-full items-center gap-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-soft">
+                  <div className="flex w-full items-center gap-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-soft">
                     <GroupIcon size={13} />
                     <span className="flex-1">{label}</span>
                     {slot("h-[14px]", "1.25rem", "rounded")}
-                  </p>
+                  </div>
                   {Array.from({ length: rows }, (_, i) => (
                     <div key={i} className="flex items-center gap-2.5 rounded-xl border border-transparent px-2 py-2">
                       {grip && <span className="px-1 text-soft"><GripVertical size={18} /></span>}
