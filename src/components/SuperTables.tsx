@@ -92,7 +92,7 @@ export default function SuperTables({ meId, users, events }: { meId: string; use
               {events.map((e) => (
                 <tr key={e.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-3 font-semibold">
-                    <Link href={`/dashboard/events/${e.id}`} className="hover:text-accent-600">{e.title}</Link>
+                    <Link href={`/event/${e.id}`} className="hover:text-accent-600">{e.title}</Link>
                     {!e.ownerActive && <Badge variant="soft" size="xs" color="rose" className="ml-2">host disabled</Badge>}
                   </td>
                   <td className="px-4 py-3"><p>{e.ownerName || "—"}</p><p className="text-xs text-soft">{e.ownerEmail}</p></td>

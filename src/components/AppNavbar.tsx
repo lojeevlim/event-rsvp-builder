@@ -13,9 +13,11 @@ export default function AppNavbar({ isSuperAdmin, children }: { isSuperAdmin: bo
   const path = usePathname();
   const router = useRouter();
 
+  const onEvent = path.startsWith("/event/");
   const items = [
-    { href: "/dashboard", label: "My events", icon: "calendar-days", active: path.startsWith("/dashboard") && !path.startsWith("/dashboard/profile") },
-    { href: "/dashboard/profile", label: "Profile", icon: "user", active: path.startsWith("/dashboard/profile") },
+    { href: "/dashboard", label: "My events", icon: "calendar-days", active: (path.startsWith("/dashboard") && !path.startsWith("/dashboard/profile")) || onEvent },
+    // no Profile tab on an event's page
+    ...(onEvent ? [] : [{ href: "/dashboard/profile", label: "Profile", icon: "user", active: path.startsWith("/dashboard/profile") }]),
     ...(isSuperAdmin ? [{ href: "/super", label: "Super admin", icon: "shield-check", active: path.startsWith("/super") }] : []),
   ];
 

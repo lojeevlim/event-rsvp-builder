@@ -52,14 +52,14 @@ export default function EventsGrid({ events }: { events: EventCard[] }) {
         }))}
         onItemClick={(item) => {
           startNavProgress();
-          router.push(`/dashboard/events/${item.id}`);
+          router.push(`/event/${item.id}`);
         }}
         onAction={({ action, item }) => {
           const ev = byId.get(String(item.id));
           if (!ev) return;
           if (action.value === "open") {
             startNavProgress();
-            router.push(`/dashboard/events/${ev.id}`);
+            router.push(`/event/${ev.id}`);
           } else if (action.value === "design") {
             startNavProgress();
             router.push(`/editor/${ev.id}`);

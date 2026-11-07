@@ -25,24 +25,35 @@ export function userFolder(user: { id: string; name: string; email: string }) {
   return `${base || "user"}-${user.id.replace(/[^a-z0-9]/gi, "").slice(0, 8)}`;
 }
 
+/** While developing, a broken R2 key should not block uploads: fall back to the local folder. On a real deployment the error is raised so it gets fixed. */
+const devFallback = () => process.env.NODE_ENV !== "production";
+
+async function putLocal(name: string, data: Buffer) {
+  await fs.mkdir(path.dirname(path.join(UPLOAD_DIR, name)), { recursive: true });
+  await fs.writeFile(path.join(UPLOAD_DIR, name), data);
+}
+
 export async function putImage(name: string, data: Buffer, type: string) {
-  if (!r2Enabled()) {
-    await fs.mkdir(path.dirname(path.join(UPLOAD_DIR, name)), { recursive: true });
-    await fs.writeFile(path.join(UPLOAD_DIR, name), data);
-    return;
+  if (!r2Enabled()) return putLocal(name, data);
+  const res = await r2Fetch(name, { method: "PUT", body: new Uint8Array(data), headers: { "Content-Type": type, "Content-Length": String(data.byteLength) } }).catch(() => null);
+  if (res?.ok) return;
+  if (devFallback()) {
+    console.warn(`R2 upload was refused (${res?.status ?? "no answer"}): check the R2_* keys and that the token can write to the bucket. Saved to data/uploads instead.`);
+    return putLocal(name, data);
   }
-  const res = await r2Fetch(name, { method: "PUT", body: new Uint8Array(data), headers: { "Content-Type": type, "Content-Length": String(data.byteLength) } });
-  if (!res.ok) throw new Error(`R2 upload failed (${res.status})`);
+  throw new Error(`R2 upload failed (${res?.status ?? "no answer"})`);
 }
 
 /** The image bytes, or null when it does not exist. */
 export async function getImage(name: string): Promise<Buffer | null> {
-  if (!r2Enabled()) return fs.readFile(path.join(UPLOAD_DIR, name)).catch(() => null);
-  const res = await r2Fetch(name, { method: "GET" });
-  return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+  const local = () => fs.readFile(path.join(UPLOAD_DIR, name)).catch(() => null);
+  if (!r2Enabled()) return local();
+  const res = await r2Fetch(name, { method: "GET" }).catch(() => null);
+  if (res?.ok) return Buffer.from(await res.arrayBuffer());
+  return devFallback() ? local() : null;
 }
 
 export async function deleteImage(name: string) {
-  if (!r2Enabled()) return void (await fs.unlink(path.join(UPLOAD_DIR, name)).catch(() => {}));
-  await r2Fetch(name, { method: "DELETE" }).catch(() => {});
+  if (!r2Enabled() || devFallback()) await fs.unlink(path.join(UPLOAD_DIR, name)).catch(() => {});
+  if (r2Enabled()) await r2Fetch(name, { method: "DELETE" }).catch(() => {});
 }

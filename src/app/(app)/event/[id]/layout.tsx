@@ -36,7 +36,7 @@ async function EventHeader({ params }: { params: Promise<{ id: string }> }) {
           </div>
         </div>
       </div>
-      <EventTabs base={`/dashboard/events/${event.id}`} showEmails={mine} />
+      <EventTabs base={`/event/${event.id}`} showEmails={mine} />
     </div>
   );
 }

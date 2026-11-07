@@ -31,7 +31,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/e/[slug]/rsvp">
     if (!row) return Response.json({ error: "This email has already RSVP'd." }, { status: 409 });
     let emailSent = true;
     const origin = await appOrigin();
-    await notifyHostOfRsvp({ event: found.event, hostEmail: found.hostEmail, ...data, link: `${origin}/dashboard/events/${found.event.id}` });
+    await notifyHostOfRsvp({ event: found.event, hostEmail: found.hostEmail, ...data, link: `${origin}/event/${found.event.id}` });
     if (data.attending) {
       const link = eventLink(origin, slug);
       const sent = await sendEventEmail({ event: found.event, kind: "confirmation", to: data.email, guest: data.name, guests: data.guests, link, replyTo: found.hostEmail });

@@ -1,12 +1,15 @@
 "use client";
 
+import { useSyncExternalStore, type ComponentProps } from "react";
+import { createPortal } from "react-dom";
+import { AlertDialog as BaseAlertDialog } from "lojee-ui";
+
 // Client barrel: lojee-ui ships without "use client", so server components import it through here.
 export {
   ANIMATED_VARIANTS,
   Accordion,
   AccordionItem,
   Alert,
-  AlertDialog,
   Badge,
   Button,
   ButtonGroup,
@@ -48,3 +51,11 @@ export {
   Tooltip,
   UserMenu,
 } from "lojee-ui";
+
+const noop = () => () => {};
+
+/** lojee-ui's AlertDialog, drawn straight into <body>: its overlay is `position: fixed`, so inside an animated or clipped page wrapper it would only cover that wrapper instead of the whole screen. */
+export function AlertDialog(props: ComponentProps<typeof BaseAlertDialog>) {
+  const client = useSyncExternalStore(noop, () => true, () => false);
+  return client ? createPortal(<BaseAlertDialog {...props} />, document.body) : null;
+}
