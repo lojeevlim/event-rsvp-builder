@@ -42,6 +42,7 @@ import { GROUPS, PALETTE, TEXT_PRESETS } from "@/components/palette";
 import ArtSvg, { ART_OPTIONS } from "@/components/ArtSvg";
 import EnvelopeIntro from "@/components/EnvelopeIntro";
 import { asSealId, SEAL_IDS, SEAL_LABELS, SealEmblem } from "@/components/Seal";
+import { fitAccent, whiteContrast } from "@/lib/color";
 import { applyPreset, EVENT_TYPE_OPTIONS, isPlaceholderName, PRESETS as EVENT_PRESETS } from "@/lib/presets";
 import { DecorItem } from "@/components/Decorations";
 import { drag, type EditActions } from "@/components/edit-ui";
@@ -56,8 +57,8 @@ import {
   FileUpload,
   Image,
   Input,
-  Popover,
   Modal,
+  Popover,
   SegmentButton,
   ThemeProvider,
   Tooltip,
@@ -68,7 +69,6 @@ import { ColorField, Grip, SelectField, SliderField, SwitchField, TextField, use
 
 type Sel = { section: string | null; block: string | null };
 
-const BG_OPTIONS = [["white", "Surface"], ["cream", "Muted"], ["brand", "Accent colour"], ["ink", "Dark accent"], ["plain", "None (dotted page)"]] as const;
 const GRADIENT_PRESETS: [string, string, string][] = [["Dusk", "#4338ca", "#be185d"], ["Ocean", "#0369a1", "#0f766e"], ["Forest", "#166534", "#3f6212"], ["Rose", "#fce7f3", "#fde68a"], ["Ivory", "#faf7f2", "#efe7d8"], ["Midnight", "#0f172a", "#312e81"], ["Champagne", "#f5e6c8", "#fdf6e3"], ["Mist", "#e0f2fe", "#ede9fe"]];
 /** one-click colour palettes: an accent, a mode and the font / design that suit it */
 const PALETTES: { name: string; accent: string; mode: "light" | "dark"; design: "bento" | "clay"; font: FontStyle }[] = [
@@ -86,6 +86,7 @@ const PALETTES: { name: string; accent: string; mode: "light" | "dark"; design: 
 const ACCENT_PRESETS = ["#27272a", "#334155", "#1d4ed8", "#4f46e5", "#6d28d9", "#be185d", "#b91c1c", "#c2410c", "#a16207", "#3f6212", "#0f766e", "#0369a1"];
 const PANEL_OPTIONS = [["none", "None"], ["blob", "Soft blob"], ["arch", "Arch"], ["wavy", "Wavy sides"], ["ticket", "Ticket (notched)"]] as const;
 const FRAME_OPTIONS = [["none", "None"], ["checker", "Checkered (racing)"], ["film", "Film strip"], ["polaroid", "Polaroid"], ["double", "Double line"]] as const;
+const BG_OPTIONS = [["white", "Surface"], ["cream", "Muted"], ["brand", "Accent colour"], ["ink", "Dark accent"], ["plain", "None (dotted page)"]] as const;
 const SIZE_OPTIONS = [["sm", "Small"], ["md", "Medium"], ["lg", "Large"], ["xl", "Extra large"]] as const;
 const TONE_OPTIONS = [["ink", "Default"], ["brand", "Accent"], ["soft", "Muted"], ["white", "Contrast (follows the background)"]] as const;
 type Clip =
@@ -166,8 +167,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
   const [selKind, setSelKind] = useState<"sticker" | "block" | "section" | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [previewing, setPreviewing] = useState(false);
-  const [stickerPanel, setStickerPanel] = useState(false);
-  const [hist, setHist] = useState({ past: 0, future: 0 });
   const headerRef = useRef<HTMLElement>(null);
   /** where the preview starts: just under the header */
   const [headerH, setHeaderH] = useState(0);
@@ -180,6 +179,8 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [previewing]);
+  const [stickerPanel, setStickerPanel] = useState(false);
+  const [hist, setHist] = useState({ past: 0, future: 0 });
   const past = useRef<Settings[]>([]);
   const future = useRef<Settings[]>([]);
   const last = useRef<Settings>(initial);
@@ -231,8 +232,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
       sections: prev.sections.map((x) => ({ ...x, blocks: x.blocks.map((b) => (b.id === id ? { ...b, ...p } : b)) })),
     }));
 
-  const actions: EditActions = {
-    moveBlock(id, toSection, index) {
   const [multi, setMulti] = useState<string[]>([]);
   // the group bar blurs in and out (lojee-ui "blur" transition); it stays mounted while the exit plays
   const [barCount, setBarCount] = useState(0);
@@ -242,7 +241,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     const t = setTimeout(() => setBarCount(0), 450);
     return () => clearTimeout(t);
   }, [barOpen, multi.length]);
-      setS((prev) => {
+  const actions: EditActions = {
     groupBlocks(ids, dir) {
       const sec = s.sections.find((x) => ids.every((id) => x.blocks.some((b) => b.id === id)));
       if (!sec) return setMsg({ ok: false, text: "Pick elements from one section to group them." });
@@ -263,6 +262,8 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         sections: prev.sections.map((sec) => (sec.blocks.some((b) => b.id === id) ? { ...sec, blocks: sec.blocks.map((b) => (b.id === id ? { ...b, x, y } : b)) } : sec)),
       }));
     },
+    moveBlock(id, toSection, index) {
+      setS((prev) => {
         const from = prev.sections.find((x) => x.blocks.some((b) => b.id === id));
         const block = from?.blocks.find((b) => b.id === id);
         if (!from || !block) return prev;
@@ -342,14 +343,14 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
       const [url] = await uploadFiles(files, 1, (m) => setMsg({ ok: false, text: m }));
       if (url) addSticker({ kind: "image", content: url, size: 96, effect: "none", color: "#ffffff" }, sectionId);
     },
-    selectSection(id) {
-      setSel({ section: id, block: null });
     async importSticker(sectionId, id) {
       const res = await fetch("/api/illustrations/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.url) return setMsg({ ok: false, text: data?.error ?? "Could not import that illustration." });
       addSticker({ kind: "image", content: data.url, size: 96, effect: "none", color: "#ffffff" }, sectionId);
     },
+    selectSection(id) {
+      setSel({ section: id, block: null });
       setSelKind("section");
     },
     editSection(id) {
@@ -367,12 +368,12 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         return { ...prev, sections: list };
       });
     },
-    toggleHidden(id) {
-      updateSection(id, { hidden: !s.sections.find((x) => x.id === id)?.hidden });
     setBorder(id, patch) {
       const cur = s.sections.find((x) => x.id === id);
       if (cur) updateSection(id, { border: { ...cur.border, ...patch } });
     },
+    toggleHidden(id) {
+      updateSection(id, { hidden: !s.sections.find((x) => x.id === id)?.hidden });
     },
     duplicateSection(id) {
       const src = s.sections.find((x) => x.id === id);
@@ -405,8 +406,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     },
   };
 
-  function addSticker(p: Partial<Decoration>, sectionId?: string) {
-    const target = s.sections.find((x) => x.id === sectionId) ?? curSection ?? s.sections[0];
   /** a floating sticker becomes an element of the layout (other elements move around it) */
   function stickerToLayout(d: Decoration) {
     const sec = s.sections.find((x) => x.id === d.section);
@@ -450,6 +449,8 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     setElementPanel(false);
   }
 
+  function addSticker(p: Partial<Decoration>, sectionId?: string) {
+    const target = s.sections.find((x) => x.id === sectionId) ?? curSection ?? s.sections[0];
     if (!target) return;
     if (s.decorations.length >= MAX_DECORATIONS) return setMsg({ ok: false, text: `Up to ${MAX_DECORATIONS} stickers per page.` });
     const d: Decoration = { id: nextId("d", s.decorations.map((x) => x.id)), section: target.id, kind: "text", content: "Hooray!", x: 50, y: 50, size: 40, rotate: 0, color: "#a1a1aa", effect: "float", ...p, flip: p.flip ?? false, sx: p.sx ?? 1, sy: p.sy ?? 1, shape: p.shape ?? "original", opacity: p.opacity ?? 100, layer: p.layer ?? "front", path: p.path ?? DEFAULT_PATH };
@@ -505,8 +506,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     await (window as unknown as { Clerk?: { signOut: (o?: { redirectUrl?: string }) => Promise<void> } }).Clerk?.signOut({ redirectUrl: "/" });
   }
 
-  function onPreviewClick(e: React.MouseEvent) {
-    const t = e.target as HTMLElement;
   // hold and drag on an empty part of a section to draw a box; every element it touches is picked (shift / ctrl / cmd adds to the picks)
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const justBoxed = useRef(false);
@@ -565,12 +564,14 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     window.addEventListener("pointerup", up);
   }
 
-    if (t.closest("[data-action]")) return; // toolbar buttons handle themselves
+  function onPreviewClick(e: React.MouseEvent) {
     if (justBoxed.current) {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
+    const t = e.target as HTMLElement;
+    if (t.closest("[data-action]")) return; // toolbar buttons handle themselves
     // inside the editor a click only selects: no scrolling, links or buttons run
     e.preventDefault();
     e.stopPropagation();
@@ -578,8 +579,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
     setSelDecor(null);
     const section = t.closest<HTMLElement>("[data-section]")?.dataset.section ?? null;
     const block = t.closest<HTMLElement>("[data-block]")?.dataset.block ?? null;
-    const part = (t.closest<HTMLElement>("[data-rsvp-part]")?.dataset.rsvpPart as RsvpPartKey | undefined) ?? null;
-    setRsvpPartKey(section && block ? part : null);
     // shift / ctrl / cmd + click picks several elements to group (while picking, a plain tap does too, for touch screens)
     if (block && (e.shiftKey || e.metaKey || e.ctrlKey || multi.length > 0)) {
       setMulti((m) => {
@@ -589,6 +588,8 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
       return;
     }
     setMulti([]);
+    const part = (t.closest<HTMLElement>("[data-rsvp-part]")?.dataset.rsvpPart as RsvpPartKey | undefined) ?? null;
+    setRsvpPartKey(section && block ? part : null);
     if (section) {
       setSel({ section, block });
       if (block) setElementPanel(!part); // a clicked form piece opens its own panel instead of the whole element's
@@ -830,11 +831,11 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
       bg: "cream",
       bgColor: "",
       hidden: false,
-      effect: "none",
-      card: false,
       panel: "none",
       border: DEFAULT_BORDER,
       gradient: DEFAULT_GRADIENT,
+      effect: "none",
+      card: false,
       wide: false,
       pad: "lg", grow: 0,
       blocks: [mk("heading", { text: "Find us" }), mk("text", { text: "Directions and parking tips for getting here.", size: "lg", tone: "soft" }), map],
@@ -989,9 +990,9 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
           </Link>
           <ButtonGroup shape="pill">
             <SegmentButton active={view === "edit"} icon="palette" onClick={() => setView("edit")}>Edit page</SegmentButton>
+            <SegmentButton active={view === "card"} icon="mail-open" onClick={() => setView("card")}>Opening card</SegmentButton>
             <SegmentButton active={view === "rsvps"} icon="users" onClick={() => setView("rsvps")}>RSVPs</SegmentButton>
           </ButtonGroup>
-            <SegmentButton active={view === "card"} icon="mail-open" onClick={() => setView("card")}>Opening card</SegmentButton>
           {/* phones: on the first row, at the right end, level with the RSVPs tab */}
           <UserMenu transition="blur" transitionDelay={60} className="ml-auto sm:hidden" name={account.name} email={account.email} avatarSrc={account.imageUrl || undefined} avatarInitials={(account.name || account.email)[0].toUpperCase()} items={[{ label: "Log out", danger: true }]} onItemSelect={() => logout()} />
           <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end sm:ml-auto">
@@ -1106,6 +1107,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
               <div
                 ref={previewRef}
                 className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-muted p-6 lg:pt-2"
+                onPointerDown={startMarquee}
                 onClickCapture={onPreviewClick}
                 onSubmitCapture={(e) => {
                   e.preventDefault();
@@ -1113,7 +1115,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                 }}
               >
                 {/* large screens: an oval bar of page actions above the page */}
-                onPointerDown={startMarquee}
                 <div data-action className="fx-invert sticky top-0 z-[60] mb-3 mx-auto hidden max-w-[1100px] justify-between lg:flex">
                   <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 shadow-md">{actionButtons(["theme", "view"], false, "bar")}</div>
                 </div>
@@ -1123,13 +1124,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                     <PageView s={display} edit={{ selected: sel, multi, layer, actions, sticker: stickerInfo, illoHandles: (b) => (b.deco ? stickerHandles({ id: b.id, section: "", x: 50, y: 50, path: DEFAULT_PATH, layer: "front", ...b.deco }, (_, patch) => updateBlock(b.id, { deco: { ...b.deco!, ...(patch as Partial<NonNullable<Block["deco"]>>) } }), () => removeBlockAsk(b.id)) : null) }} />
                   </div>
                 </ThemeProvider>
-              </div>
-
-            {/* always-visible list of everything added to the selected section */}
-            <aside className="max-h-56 w-full shrink-0 overflow-y-auto overscroll-contain border-t border-border bg-surface lg:max-h-none lg:w-[clamp(176px,14vw,300px)] lg:border-l lg:border-t-0">
-              <div className={`sticky top-0 z-10 flex h-14 w-full shrink-0 items-center gap-2 bg-surface/95 px-3 backdrop-blur lg:h-[65px] ${addedOpen ? "border-b border-border" : "max-lg:border-b-0"} lg:border-b lg:border-border`}>
-                <SaveButton dirty={dirty} saving={saving} onClick={save} />
-                <button type="button" aria-expanded={addedOpen} aria-label="Show or hide what is in this section" onClick={() => setAddedOpen((o) => !o)} className="flex shrink-0 items-center gap-2 rounded-full p-1 lg:hidden">
                 {marquee && <i aria-hidden className="pointer-events-none fixed z-[90] rounded-md border-2 border-brand bg-brand/15" style={{ left: marquee.x1, top: marquee.y1, width: marquee.x2 - marquee.x1, height: marquee.y2 - marquee.y1 }} />}
                 {barCount > 0 && (
                   <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[70] flex justify-center px-3">
@@ -1142,6 +1136,13 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
                   </div>
                   </div>
                 )}
+              </div>
+
+            {/* always-visible list of everything added to the selected section */}
+            <aside className="max-h-56 w-full shrink-0 overflow-y-auto overscroll-contain border-t border-border bg-surface lg:max-h-none lg:w-[clamp(176px,14vw,300px)] lg:border-l lg:border-t-0">
+              <div className={`sticky top-0 z-10 flex h-14 w-full shrink-0 items-center gap-2 bg-surface/95 px-3 backdrop-blur lg:h-[65px] ${addedOpen ? "border-b border-border" : "max-lg:border-b-0"} lg:border-b lg:border-border`}>
+                <SaveButton dirty={dirty} saving={saving} onClick={save} />
+                <button type="button" aria-expanded={addedOpen} aria-label="Show or hide what is in this section" onClick={() => setAddedOpen((o) => !o)} className="flex shrink-0 items-center gap-2 rounded-full p-1 lg:hidden">
                   {layerSection && <Badge variant="soft" size="xs" color="blue">{layerSection.blocks.length + s.decorations.filter((d) => d.section === layerSection.id).length}</Badge>}
                   <ChevronDown size={16} className={`shrink-0 text-soft transition-transform ${addedOpen ? "" : "-rotate-90"}`} aria-hidden />
                 </button>
@@ -1241,6 +1242,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
           <FloatingPanel key="sticker" panelId="sticker" title={`Edit ${KIND_LABEL[curDecor.kind].toLowerCase()}`} onClose={() => closeStickerPanel(true)} onDone={() => closeStickerPanel(false)} closeHint={justAddedSticker && untouched(curDecor) ? "Cancel — removes the sticker you just added" : "Close"}>
             <StickerEditor
               cur={curDecor}
+              onPosition={() => stickerToLayout(curDecor)}
               update={(patch) => setS((prev) => ({ ...prev, decorations: prev.decorations.map((d) => (d.id === curDecor.id ? { ...d, ...patch } : d)) }))}
             />
           </FloatingPanel>
@@ -1248,7 +1250,6 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
         </AnimatePresence>
 
         <AnimatePresence>
-              onPosition={() => stickerToLayout(curDecor)}
         {stickersPanel && !previewing && (
           <FloatingPanel key="stickers" panelId="stickers" title="Text stickers" onClose={() => setStickersPanel(false)} onDone={() => setStickersPanel(false)}>
             <DecorTools
@@ -1350,6 +1351,7 @@ export default function AdminPanel({ initial, eventId, eventTitle, account }: { 
 
 /* ------------------------------------------------------------------ */
 
+const DESIGN_OPTIONS = [["bento", "Bento", "Flat, clean cards"], ["clay", "Clay", "Soft, rounded, friendly"]] as const;
 const FONT_OPTIONS = [
   ["playful", "Playful — Nunito & Fredoka"],
   ["modern", "Modern — Inter & Poppins"],
@@ -1370,7 +1372,6 @@ function SaveButton({ dirty, saving, onClick }: { dirty: boolean; saving: boolea
       disabled={!dirty || saving}
       onClick={onClick}
       className="min-w-0 flex-1 font-semibold"
-const DESIGN_OPTIONS = [["bento", "Bento", "Flat, clean cards"], ["clay", "Clay", "Soft, rounded, friendly"]] as const;
     >
       {saving ? "Saving…" : dirty ? "Save changes" : "All saved"}
     </Button>
@@ -1379,6 +1380,7 @@ const DESIGN_OPTIONS = [["bento", "Bento", "Flat, clean cards"], ["clay", "Clay"
 
 function ThemeTool({ s, setS, onPickType }: { s: Settings; setS: React.Dispatch<React.SetStateAction<Settings>>; onPickType: (t: EventType) => void }) {
   const set = (p: Partial<Settings["theme"]>) => setS((prev) => ({ ...prev, theme: { ...prev.theme, ...p } }));
+  const setPage = (p: Partial<Settings["page"]>) => setS((prev) => ({ ...prev, page: { ...prev.page, ...p } }));
   return (
     <div className="grid gap-5">
       <div className="grid gap-1.5">
@@ -1399,13 +1401,49 @@ function ThemeTool({ s, setS, onPickType }: { s: Settings; setS: React.Dispatch<
           </Alert>
         )}
       </div>
+      <div className="grid gap-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Palettes</span>
+        <div className="grid grid-cols-5 gap-2">
+          {PALETTES.map((p) => {
+            const accent = fitAccent(p.accent, p.mode);
+            const on = s.theme.accent === accent && s.theme.mode === p.mode;
+            return (
+              <button key={p.name} type="button" title={p.name} aria-label={`${p.name} palette`} aria-pressed={on} onClick={() => set({ accent, mode: p.mode, design: p.design, font: p.font })} className={`relative h-9 overflow-hidden rounded-xl border transition-transform hover:scale-105 ${on ? "border-fg ring-2 ring-fg/20" : "border-border"}`} style={{ background: p.mode === "dark" ? "#14141a" : "#faf8f4" }}>
+                <span className="absolute inset-x-1.5 bottom-1.5 top-4 rounded-md" style={{ background: accent }} />
+                <span className="absolute left-1.5 top-1.5 h-1.5 w-5 rounded-full" style={{ background: p.mode === "dark" ? "#ffffff55" : "#00000026" }} />
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-soft">A palette sets the colour, light or dark mode, design and font together.</p>
+      </div>
       <ColorField
         label="Accent colour"
         value={/^#[0-9a-fA-F]{6}$/.test(s.theme.accent) ? s.theme.accent : "#27272a"}
         presets={ACCENT_PRESETS}
         onChange={(accent) => set({ accent })}
       />
+      {/^#[0-9a-fA-F]{6}$/.test(s.theme.accent) && whiteContrast(s.theme.accent) < 4.5 && (
+        <Alert variant="warning" icon={false}>
+          This colour is light, so white button text can be hard to read.{" "}
+          <button type="button" className="font-semibold underline" onClick={() => set({ accent: fitAccent(s.theme.accent, s.theme.mode) })}>Make it readable</button>
+        </Alert>
+      )}
       <SwitchField label="Dark mode" checked={s.theme.mode === "dark"} onChange={(dark) => set({ mode: dark ? "dark" : "light" })} />
+      <div className="grid gap-1.5">
+        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Design</span>
+        <div className="grid grid-cols-2 gap-2">
+          {DESIGN_OPTIONS.map(([id, label, hint]) => (
+            <button key={id} type="button" aria-pressed={s.theme.design === id} onClick={() => set({ design: id })} className={`grid gap-1.5 rounded-xl border p-2 text-left transition-colors ${s.theme.design === id ? "border-fg bg-surface-muted" : "border-border hover:border-fg/40"}`}>
+              <span className="flex h-9 items-center justify-center rounded-lg bg-surface-muted">
+                <span className="h-5 w-12 bg-accent-600" style={{ borderRadius: id === "clay" ? 999 : 5, boxShadow: id === "clay" ? "0 3px 0 rgba(0,0,0,.22)" : "0 4px 10px -4px var(--color-accent-600)" }} />
+              </span>
+              <span className="text-xs font-bold">{label}</span>
+              <span className="text-[11px] leading-snug text-soft">{hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <SelectField label="Font style" value={s.theme.font} options={FONT_OPTIONS} onChange={(font) => set({ font })} />
       <p className="text-xs text-soft">The accent colour, mode, design and font style restyle the whole site, and every lojee-ui component on it.</p>
 
@@ -1519,6 +1557,25 @@ function SectionEditor({ sec, set, remove }: { sec: Section; set: (p: Partial<Se
           onChange={(effect) => set({ effect })}
         />
         <div className="grid gap-3 rounded-xl border border-border p-3">
+          <SwitchField label="Gradient background" checked={sec.gradient.on} onChange={(on) => set({ gradient: { ...sec.gradient, on } })} />
+          {sec.gradient.on ? (
+            <>
+              <div className="h-12 rounded-lg border border-border" style={{ backgroundImage: `linear-gradient(${sec.gradient.angle}deg, ${sec.gradient.from}, ${sec.gradient.to})` }} />
+              <div className="flex flex-wrap gap-1.5">
+                {GRADIENT_PRESETS.map(([name, from, to]) => (
+                  <button key={name} type="button" title={name} aria-label={`${name} gradient`} onClick={() => set({ gradient: { ...sec.gradient, from, to } })} className="h-7 w-7 rounded-full border border-black/10 transition-transform hover:scale-110" style={{ backgroundImage: `linear-gradient(135deg, ${from}, ${to})` }} />
+                ))}
+              </div>
+              <ColorField label="From" value={sec.gradient.from} presets={["#6366f1", "#0ea5e9", "#14b8a6", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#18181b"]} onChange={(from) => set({ gradient: { ...sec.gradient, from } })} />
+              <ColorField label="To" value={sec.gradient.to} presets={["#ec4899", "#8b5cf6", "#06b6d4", "#84cc16", "#f97316", "#facc15", "#fda4af", "#ffffff"]} onChange={(to) => set({ gradient: { ...sec.gradient, to } })} />
+              <SliderField label="Direction (degrees)" value={sec.gradient.angle} min={0} max={360} onChange={(angle) => set({ gradient: { ...sec.gradient, angle } })} />
+              <Button variant="outline" size="xs" className="justify-self-start" onClick={() => set({ gradient: { ...sec.gradient, from: sec.gradient.to, to: sec.gradient.from } })}>Swap colours</Button>
+            </>
+          ) : (
+            <p className="text-xs text-soft">Off — a smooth blend of two colours behind this section.</p>
+          )}
+        </div>
+        <div className="grid gap-3 rounded-xl border border-border p-3">
           <SwitchField label="Custom colour" checked={!!sec.bgColor} onChange={(on) => set({ bgColor: on ? "#f4f4f5" : "" })} />
           {sec.bgColor ? (
             <>
@@ -1540,7 +1597,9 @@ function SectionEditor({ sec, set, remove }: { sec: Section; set: (p: Partial<Se
       </Group>
 
       <Group label="Layout" Icon={LayoutTemplate}>
+        <SliderField label="Extra height below the content (px)" value={sec.grow} min={0} max={400} onChange={(grow) => set({ grow })} />
         <SelectField label="Spacing" value={sec.pad} options={[["sm", "Small"], ["md", "Medium"], ["lg", "Large"]]} onChange={(pad) => set({ pad })} />
+        <SelectField label="Panel shape behind the content" value={sec.panel} options={PANEL_OPTIONS} onChange={(panel) => set({ panel })} />
         <SwitchField label="Rounded card style" checked={sec.card} onChange={(card) => set({ card })} />
         <SwitchField label="Wide content (use more of the page width)" checked={sec.wide} onChange={(wide) => set({ wide })} />
       </Group>
@@ -1564,7 +1623,6 @@ function rsvpPartOps(b: Block, set: (p: Partial<Block>) => void) {
     setPart: (key: RsvpPartKey, patch: Partial<RsvpPart>) => set({ parts: parts.map((p) => (p.key === key ? { ...p, ...patch } : p)) }),
     move: (key: RsvpPartKey, d: number) => {
       const a = [...parts];
-  const setPage = (p: Partial<Settings["page"]>) => setS((prev) => ({ ...prev, page: { ...prev.page, ...p } }));
       const i = a.findIndex((p) => p.key === key);
       if (i < 0 || i + d < 0 || i + d >= a.length) return;
       [a[i], a[i + d]] = [a[i + d], a[i]];
@@ -1585,49 +1643,13 @@ function RsvpPartEditor({ b, partKey, set, onRemoved }: { b: Block; partKey: Rsv
         <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Position</span>
         <div className="flex items-center gap-1">
           <button type="button" className={RSVP_ICON_BTN} aria-label="Move up" title="Move up" disabled={i === 0} onClick={() => move(partKey, -1)}><ArrowUp size={14} /></button>
-      <div className="grid gap-2">
-        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Palettes</span>
-        <div className="grid grid-cols-5 gap-2">
-          {PALETTES.map((p) => {
-            const accent = fitAccent(p.accent, p.mode);
-            const on = s.theme.accent === accent && s.theme.mode === p.mode;
-            return (
-              <button key={p.name} type="button" title={p.name} aria-label={`${p.name} palette`} aria-pressed={on} onClick={() => set({ accent, mode: p.mode, design: p.design, font: p.font })} className={`relative h-9 overflow-hidden rounded-xl border transition-transform hover:scale-105 ${on ? "border-fg ring-2 ring-fg/20" : "border-border"}`} style={{ background: p.mode === "dark" ? "#14141a" : "#faf8f4" }}>
-                <span className="absolute inset-x-1.5 bottom-1.5 top-4 rounded-md" style={{ background: accent }} />
-                <span className="absolute left-1.5 top-1.5 h-1.5 w-5 rounded-full" style={{ background: p.mode === "dark" ? "#ffffff55" : "#00000026" }} />
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-xs text-soft">A palette sets the colour, light or dark mode, design and font together.</p>
-      </div>
           <button type="button" className={RSVP_ICON_BTN} aria-label="Move down" title="Move down" disabled={i === parts.length - 1} onClick={() => move(partKey, 1)}><ArrowDown size={14} /></button>
         </div>
       </div>
       <SwitchField label={meta.required ? "Shown (the form needs this)" : "Show this piece"} checked={!p.hidden} onChange={(show) => !meta.required && setPart(partKey, { hidden: !show })} />
       <div className="grid grid-cols-3 gap-2">
         <SelectField label="Size" value={p.size} options={SIZE_OPTIONS} onChange={(size) => setPart(partKey, { size })} />
-      {/^#[0-9a-fA-F]{6}$/.test(s.theme.accent) && whiteContrast(s.theme.accent) < 4.5 && (
-        <Alert variant="warning" icon={false}>
-          This colour is light, so white button text can be hard to read.{" "}
-          <button type="button" className="font-semibold underline" onClick={() => set({ accent: fitAccent(s.theme.accent, s.theme.mode) })}>Make it readable</button>
-        </Alert>
-      )}
         <SelectField label="Align" value={p.align} options={[["left", "Left"], ["center", "Center"], ["right", "Right"]]} onChange={(align) => setPart(partKey, { align })} />
-      <div className="grid gap-1.5">
-        <span className="text-xs font-bold uppercase tracking-wide text-fg-muted">Design</span>
-        <div className="grid grid-cols-2 gap-2">
-          {DESIGN_OPTIONS.map(([id, label, hint]) => (
-            <button key={id} type="button" aria-pressed={s.theme.design === id} onClick={() => set({ design: id })} className={`grid gap-1.5 rounded-xl border p-2 text-left transition-colors ${s.theme.design === id ? "border-fg bg-surface-muted" : "border-border hover:border-fg/40"}`}>
-              <span className="flex h-9 items-center justify-center rounded-lg bg-surface-muted">
-                <span className="h-5 w-12 bg-accent-600" style={{ borderRadius: id === "clay" ? 999 : 5, boxShadow: id === "clay" ? "0 3px 0 rgba(0,0,0,.22)" : "0 4px 10px -4px var(--color-accent-600)" }} />
-              </span>
-              <span className="text-xs font-bold">{label}</span>
-              <span className="text-[11px] leading-snug text-soft">{hint}</span>
-            </button>
-          ))}
-        </div>
-      </div>
         <SelectField label="Width" value={p.width} options={[["half", "Half"], ["full", "Full"], ["fit", "Fit"]]} onChange={(width) => setPart(partKey, { width })} />
       </div>
       {RSVP_FIELDS.some((f) => f.group === partKey) && (
@@ -1663,25 +1685,6 @@ function RsvpPartEditor({ b, partKey, set, onRemoved }: { b: Block; partKey: Rsv
 function BlockEditor({ b, set, remove, setMsg, onEditPart, onToFixed }: { onToFixed?: () => void; b: Block; set: (p: Partial<Block>) => void; remove: () => void; setMsg: (m: { ok: boolean; text: string }) => void; onEditPart?: (key: RsvpPartKey) => void }) {
   const t = (field: "text" | "text2" | "text3" | "url" | "icon" | "back", label: string, long = false) => (
     <TextField label={label} value={b[field]} long={long} onChange={(v) => set({ [field]: v })} />
-        <div className="grid gap-3 rounded-xl border border-border p-3">
-          <SwitchField label="Gradient background" checked={sec.gradient.on} onChange={(on) => set({ gradient: { ...sec.gradient, on } })} />
-          {sec.gradient.on ? (
-            <>
-              <div className="h-12 rounded-lg border border-border" style={{ backgroundImage: `linear-gradient(${sec.gradient.angle}deg, ${sec.gradient.from}, ${sec.gradient.to})` }} />
-              <div className="flex flex-wrap gap-1.5">
-                {GRADIENT_PRESETS.map(([name, from, to]) => (
-                  <button key={name} type="button" title={name} aria-label={`${name} gradient`} onClick={() => set({ gradient: { ...sec.gradient, from, to } })} className="h-7 w-7 rounded-full border border-black/10 transition-transform hover:scale-110" style={{ backgroundImage: `linear-gradient(135deg, ${from}, ${to})` }} />
-                ))}
-              </div>
-              <ColorField label="From" value={sec.gradient.from} presets={["#6366f1", "#0ea5e9", "#14b8a6", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#18181b"]} onChange={(from) => set({ gradient: { ...sec.gradient, from } })} />
-              <ColorField label="To" value={sec.gradient.to} presets={["#ec4899", "#8b5cf6", "#06b6d4", "#84cc16", "#f97316", "#facc15", "#fda4af", "#ffffff"]} onChange={(to) => set({ gradient: { ...sec.gradient, to } })} />
-              <SliderField label="Direction (degrees)" value={sec.gradient.angle} min={0} max={360} onChange={(angle) => set({ gradient: { ...sec.gradient, angle } })} />
-              <Button variant="outline" size="xs" className="justify-self-start" onClick={() => set({ gradient: { ...sec.gradient, from: sec.gradient.to, to: sec.gradient.from } })}>Swap colours</Button>
-            </>
-          ) : (
-            <p className="text-xs text-soft">Off — a smooth blend of two colours behind this section.</p>
-          )}
-        </div>
   );
   const rsvp = rsvpPartOps(b, set);
   const sizeSel = (label = "Size") => <SelectField label={label} value={b.size} options={SIZE_OPTIONS} onChange={(size) => set({ size })} />;
@@ -1704,9 +1707,7 @@ function BlockEditor({ b, set, remove, setMsg, onEditPart, onToFixed }: { onToFi
             <div className="grid grid-cols-2 gap-2">{sizeSel()}{toneSel}</div>
           </>
         )}
-        <SliderField label="Extra height below the content (px)" value={sec.grow} min={0} max={400} onChange={(grow) => set({ grow })} />
         {b.type === "script" && t("text", "Text")}
-        <SelectField label="Panel shape behind the content" value={sec.panel} options={PANEL_OPTIONS} onChange={(panel) => set({ panel })} />
         {b.type === "button" && (
           <>
             {t("text", "Button text")}
@@ -1727,6 +1728,8 @@ function BlockEditor({ b, set, remove, setMsg, onEditPart, onToFixed }: { onToFi
             {t("text2", "Main line")}
             {t("text3", "Second line")}
             {t("url", "Link (optional, https://…)")}
+            <SelectField label="When tapped" value={b.tap} options={[["none", "Nothing"], ["flip", "Flip over"], ["pop", "Pop (bounce)"]]} onChange={(tap) => set({ tap })} />
+            {b.tap === "flip" && t("back", "Text on the back", true)}
           </>
         )}
         {b.type === "step" && (<>{t("text", "Time")}{t("text2", "Title")}{t("text3", "Description", true)}</>)}
@@ -1782,7 +1785,17 @@ function BlockEditor({ b, set, remove, setMsg, onEditPart, onToFixed }: { onToFi
         {b.type === "spacer" && sizeSel("Height")}
         {b.type === "image" && <ImageField b={b} set={set} setMsg={setMsg} />}
         {b.type === "gallery" && <GalleryField b={b} set={set} setMsg={setMsg} />}
+        {(b.type === "image" || b.type === "gallery") && <SelectField label="Photo frame" value={b.frame} options={FRAME_OPTIONS} onChange={(frame) => set({ frame })} />}
         {b.type === "map" && <MapFields b={b} set={set} setMsg={setMsg} />}
+        {b.type === "illustration" && b.deco && (
+          <StickerEditor
+            cur={{ id: b.id, section: "", x: 50, y: 50, path: DEFAULT_PATH, layer: "front", ...b.deco }}
+            inLayout
+            onPosition={() => onToFixed?.()}
+            update={(patch) => set({ deco: { ...b.deco!, ...(patch as Partial<NonNullable<Block["deco"]>>) } })}
+          />
+        )}
+        <SwitchField label="Overlap other elements (they don't move when this one is dragged)" checked={b.overlap} onChange={(overlap) => set({ overlap })} />
         <Button variant="destructive-outline" size="sm" icon="trash-2" className="justify-self-start" onClick={remove}>
           Delete element
         </Button>
@@ -1835,8 +1848,6 @@ function MapFields({ b, set, setMsg }: { b: Block; set: (p: Partial<Block>) => v
   return (
     <>
       <TextField label="Title (shown on the pin)" value={b.text} onChange={(text) => set({ text })} />
-            <SelectField label="When tapped" value={b.tap} options={[["none", "Nothing"], ["flip", "Flip over"], ["pop", "Pop (bounce)"]]} onChange={(tap) => set({ tap })} />
-            {b.tap === "flip" && t("back", "Text on the back", true)}
       <TextField label="Address" value={b.text2} placeholder="e.g. 10 Downing Street, London" onChange={(text2) => set({ text2 })} />
       <Button variant="outline" size="sm" icon="map-pin" loading={busy} className="justify-self-start" onClick={find}>
         Find on map
@@ -1892,17 +1903,7 @@ function GalleryField({ b, set, setMsg }: { b: Block; set: (p: Partial<Block>) =
                   <Grip {...dnd.handle(i)} />
                   <Button variant="ghost" size="xs" icon="trash-2" iconOnly aria-label="Remove image" onClick={() => set({ images: images.filter((_, j) => j !== i) })} />
                 </div>
-        {(b.type === "image" || b.type === "gallery") && <SelectField label="Photo frame" value={b.frame} options={FRAME_OPTIONS} onChange={(frame) => set({ frame })} />}
               </div>
-        {b.type === "illustration" && b.deco && (
-          <StickerEditor
-            cur={{ id: b.id, section: "", x: 50, y: 50, path: DEFAULT_PATH, layer: "front", ...b.deco }}
-            inLayout
-            onPosition={() => onToFixed?.()}
-            update={(patch) => set({ deco: { ...b.deco!, ...(patch as Partial<NonNullable<Block["deco"]>>) } })}
-          />
-        )}
-        <SwitchField label="Overlap other elements (they don't move when this one is dragged)" checked={b.overlap} onChange={(overlap) => set({ overlap })} />
             </Card>
           </div>
         ))}
@@ -2027,7 +2028,31 @@ function DragLayer({
     curve = `M${sel.x} ${sel.y} Q${cx} ${cy} ${sel.path.x} ${sel.path.y}`;
   }
 
+  // stickers set to "behind" sit under the section's elements, even while picked: the picture stays on the back layer and only its frame and handles are drawn in front
+  const behind = items.filter((d) => d.layer === "back");
+  items = items.filter((d) => d.layer !== "back");
+  const pickedBehind = behind.find((d) => d.id === selected);
+  const item = (d: Decoration) => {
+    const grab = (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      draggingRef.current = d.id;
+      onSelect(d.id);
+    };
+    return <DecorItem key={d.id} d={d} noPath selected={false} className="pointer-events-auto cursor-grab touch-none active:cursor-grabbing" onPointerDown={grab} />;
+  };
+
   return (
+    <>
+    {behind.length > 0 && (
+      <div className="pointer-events-none absolute inset-0 z-[6] touch-none overflow-hidden" onPointerMove={move} onPointerUp={() => (draggingRef.current = null)} onPointerCancel={() => (draggingRef.current = null)}>
+        {behind.map(item)}
+      </div>
+    )}
+    {pickedBehind && (
+      <div className="pointer-events-none absolute inset-0 z-20 touch-none overflow-hidden" onPointerMove={move} onPointerUp={() => (draggingRef.current = null)} onPointerCancel={() => (draggingRef.current = null)}>
+        <DecorItem d={pickedBehind} noPath ghost selected handles={handlesFor(pickedBehind)} className="pointer-events-auto cursor-grab touch-none active:cursor-grabbing" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); draggingRef.current = pickedBehind.id; }} />
+      </div>
+    )}
     <div
       ref={ref}
       className="pointer-events-none absolute inset-0 z-20 touch-none overflow-hidden"
@@ -2071,6 +2096,7 @@ function DragLayer({
         );
       })}
     </div>
+    </>
   );
 }
 
@@ -2135,31 +2161,7 @@ function DecorTools({
             <div
               key={p.label}
               draggable={!full}
-  // stickers set to "behind" sit under the section's elements, even while picked: the picture stays on the back layer and only its frame and handles are drawn in front
-  const behind = items.filter((d) => d.layer === "back");
-  items = items.filter((d) => d.layer !== "back");
-  const pickedBehind = behind.find((d) => d.id === selected);
-  const item = (d: Decoration) => {
-    const grab = (e: React.PointerEvent<HTMLDivElement>) => {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      draggingRef.current = d.id;
-      onSelect(d.id);
-    };
-    return <DecorItem key={d.id} d={d} noPath selected={false} className="pointer-events-auto cursor-grab touch-none active:cursor-grabbing" onPointerDown={grab} />;
-  };
-
               onDragStart={(e) => {
-    <>
-    {behind.length > 0 && (
-      <div className="pointer-events-none absolute inset-0 z-[6] touch-none overflow-hidden" onPointerMove={move} onPointerUp={() => (draggingRef.current = null)} onPointerCancel={() => (draggingRef.current = null)}>
-        {behind.map(item)}
-      </div>
-    )}
-    {pickedBehind && (
-      <div className="pointer-events-none absolute inset-0 z-20 touch-none overflow-hidden" onPointerMove={move} onPointerUp={() => (draggingRef.current = null)} onPointerCancel={() => (draggingRef.current = null)}>
-        <DecorItem d={pickedBehind} noPath ghost selected handles={handlesFor(pickedBehind)} className="pointer-events-auto cursor-grab touch-none active:cursor-grabbing" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); draggingRef.current = pickedBehind.id; }} />
-      </div>
-    )}
                 drag.current = { kind: "sticker", preset: p.d };
                 e.dataTransfer.setData("text/plain", p.label);
                 e.dataTransfer.effectAllowed = "copy";
@@ -2203,10 +2205,18 @@ function DecorTools({
 
 
 /** The sticker settings, shown inside the floating panel. */
-    </>
 function StickerEditor({ cur, update, onPosition, inLayout = false }: { cur: Decoration; update: (patch: Partial<Decoration>) => void; /** switch between floating (fixed) and part of the layout */ onPosition: () => void; inLayout?: boolean }) {
   return (
     <div className="grid gap-4">
+      <div className="grid gap-1.5">
+        <p className="text-xs font-bold uppercase tracking-wide">Position</p>
+        <div className="flex gap-1">
+          {([[false, "Fixed"], [true, "Part of layout"]] as const).map(([v, label]) => (
+            <button key={label} type="button" onClick={() => v !== inLayout && onPosition()} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-semibold ${v === inLayout ? "bg-fg text-surface" : "bg-surface-muted text-soft hover:text-fg"}`}>{label}</button>
+          ))}
+        </div>
+        <p className="text-xs text-soft">{inLayout ? "Sits in the page like any element: dragging it moves the elements around it." : "Floats freely over the section; other elements never move."}</p>
+      </div>
       {cur.kind === "image" ? (
         <div className="grid gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2242,7 +2252,9 @@ function StickerEditor({ cur, update, onPosition, inLayout = false }: { cur: Dec
         />
       )}
       <SliderField label="Opacity (%)" min={10} max={100} value={cur.opacity} onChange={(opacity) => update({ opacity })} />
+      {!inLayout && <SelectField label="Layer (never moves other elements)" value={cur.layer ?? "front"} options={[["front", "In front of all elements"], ["back", "Behind all elements"]]} onChange={(layer) => update({ layer })} />}
 
+      {!inLayout && (
       <div className="grid gap-3 rounded-xl border border-border p-3">
         <SwitchField
           label="Move along a path"
@@ -2264,6 +2276,7 @@ function StickerEditor({ cur, update, onPosition, inLayout = false }: { cur: Dec
           </>
         )}
       </div>
+      )}
 
     </div>
   );
@@ -2315,15 +2328,6 @@ function Connector({ panel, selector }: { panel: string; selector: string }) {
       />
       <circle cx={geo.sx} cy={geo.sy} r="4" fill="#2563eb" />
       <circle cx={geo.ex} cy={geo.ey} r="5" fill="#fff" stroke="#2563eb" strokeWidth="2.5" />
-      <div className="grid gap-1.5">
-        <p className="text-xs font-bold uppercase tracking-wide">Position</p>
-        <div className="flex gap-1">
-          {([[false, "Fixed"], [true, "Part of layout"]] as const).map(([v, label]) => (
-            <button key={label} type="button" onClick={() => v !== inLayout && onPosition()} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-semibold ${v === inLayout ? "bg-fg text-surface" : "bg-surface-muted text-soft hover:text-fg"}`}>{label}</button>
-          ))}
-        </div>
-        <p className="text-xs text-soft">{inLayout ? "Sits in the page like any element: dragging it moves the elements around it." : "Floats freely over the section; other elements never move."}</p>
-      </div>
     </svg>
   );
 }
@@ -2359,9 +2363,7 @@ function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", w
         }}
         onPointerMove={(e) => {
           if (!grab.current) return;
-      {!inLayout && <SelectField label="Layer (never moves other elements)" value={cur.layer ?? "front"} options={[["front", "In front of all elements"], ["back", "Behind all elements"]]} onChange={(layer) => update({ layer })} />}
           const next = {
-      {!inLayout && (
             x: Math.min(window.innerWidth - 80, Math.max(0, e.clientX - grab.current.dx)),
             y: Math.min(window.innerHeight - 48, Math.max(0, e.clientY - grab.current.dy)),
           };
@@ -2383,7 +2385,6 @@ function FloatingPanel({ panelId, title, onClose, onDone, closeHint = "Close", w
       <div className="border-t border-border bg-surface p-3">
         <Button shape="pill" size="sm" className="w-full font-semibold" onClick={onDone}>
           Done
-      )}
         </Button>
       </div>
     </motion.div>
